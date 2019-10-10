@@ -223,6 +223,7 @@ namespace Fleck
             return Socket.Send(bytes, () =>
             {
                 FleckLog.Debug("Sent " + bytes.Length + " bytes");
+                bytes.Dispose();
                 callback?.Invoke();
             }, e =>
             {
@@ -230,6 +231,8 @@ namespace Fleck
                     FleckLog.Debug("Failed to send. Disconnecting.", e);
                 else
                     FleckLog.Info("Failed to send. Disconnecting.", e);
+
+                bytes.Dispose();
                 CloseSocket();
             });
         }
@@ -243,6 +246,5 @@ namespace Fleck
             Socket.Dispose();
             _closing = false;
         }
-
     }
 }

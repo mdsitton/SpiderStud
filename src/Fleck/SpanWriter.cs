@@ -14,12 +14,13 @@ namespace Fleck
             Length = 0;
         }
 
-        public void Write<T>(T value) where T : unmanaged
+        public void Write<T>(T value, bool reverse = true) where T : unmanaged
         {
             if (Length + sizeof(T) >= _data.Length)
                 throw new ArgumentException("Cannot write past end of span");
 
             var valueSpan = new Span<byte>(&value, sizeof(T));
+            if (reverse) valueSpan.Reverse();
             var destSpan = _data.Slice(Length, sizeof(T));
             valueSpan.CopyTo(destSpan);
             Length += sizeof(T);

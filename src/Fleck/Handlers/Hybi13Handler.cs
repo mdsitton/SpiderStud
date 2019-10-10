@@ -75,7 +75,7 @@ namespace Fleck.Handlers
             builder.Append("Upgrade: websocket\r\n");
             builder.Append("Connection: Upgrade\r\n");
 
-            var responseKey =  CreateResponseKey(_request["Sec-WebSocket-Key"]);
+            var responseKey = CreateResponseKey(_request["Sec-WebSocket-Key"]);
             builder.AppendFormat("Sec-WebSocket-Accept: {0}\r\n", responseKey);
             builder.Append("\r\n");
 
@@ -109,7 +109,7 @@ namespace Fleck.Handlers
             codeSpan.Reverse();
             return FrameData(codeSpan, FrameType.Close);
         }
-        
+
         private MemoryBuffer FrameData(Span<byte> payload, FrameType frameType)
         {
             var data = ArrayPool<byte>.Shared.Rent(payload.Length + 16);
@@ -117,22 +117,27 @@ namespace Fleck.Handlers
 
             byte op = (byte)((byte)frameType + 128);
             writer.Write(op);
-            
-            if (payload.Length > ushort.MaxValue) {
+
+            if (payload.Length > ushort.MaxValue)
+            {
                 writer.Write<byte>(127);
                 writer.Write((ulong)payload.Length);
-            } else if (payload.Length > 125) {
+            }
+            else if (payload.Length > 125)
+            {
                 writer.Write<byte>(126);
                 writer.Write((ushort)payload.Length);
-            } else {
+            }
+            else
+            {
                 writer.Write((byte)payload.Length);
             }
-            
+
             writer.Write(payload);
 
             return new MemoryBuffer(data, writer.Length);
         }
-        
+
         private void ReceiveData()
         {
             while (_dataLen >= 2)
@@ -142,17 +147,17 @@ namespace Fleck.Handlers
                 var frameType = (FrameType)(_data[0] & 15);
                 var isMasked = (_data[1] & 128) != 0;
                 var length = (_data[1] & 127);
-                
-                
+
+
                 if (!isMasked
                     || !frameType.IsDefined()
                     || reservedBits != 0 // Must be zero per spec 5.2
                     || (frameType == FrameType.Continuation && !_readState.FrameType.HasValue))
                     throw new WebSocketException(WebSocketStatusCodes.ProtocolError);
-                
+
                 var index = 2;
                 int payloadLength;
-                
+
                 if (length == 127)
                 {
                     if (_dataLen < index + 8)
@@ -171,78 +176,78 @@ namespace Fleck.Handlers
                 {
                     payloadLength = length;
                 }
-                
-                if (_dataLen < index + 4) 
+
+                if (_dataLen < index + 4)
                     return; //Not complete
-               
+
                 var maskBytes = new Span<byte>(_data, index, 4);
                 index += 4;
-                
-                if (_dataLen < index + payloadLength) 
+
+                if (_dataLen < index + payloadLength)
                     return; //Not complete
-                
+
                 byte[] payloadData = new byte[payloadLength];
                 for (int i = 0; i < payloadLength; i++)
-                    payloadData[i] = (byte)(_data[index+i] ^ maskBytes[i % 4]);
+                    payloadData[i] = (byte)(_data[index + i] ^ maskBytes[i % 4]);
 
                 _readState.Data.AddRange(payloadData);
 
                 var bytesUsed = index + payloadLength;
                 Buffer.BlockCopy(_data, bytesUsed, _data, 0, _dataLen - bytesUsed);
                 _dataLen -= index + payloadLength;
-                
+
                 if (frameType != FrameType.Continuation)
                     _readState.FrameType = frameType;
-                
+
                 if (isFinal && _readState.FrameType.HasValue)
                 {
                     var stateData = _readState.Data.ToArray();
                     var stateFrameType = _readState.FrameType;
                     _readState.Clear();
-                    
+
                     ProcessFrame(stateFrameType.Value, stateData);
                 }
             }
         }
-        
+
         private void ProcessFrame(FrameType frameType, byte[] data)
         {
             switch (frameType)
             {
-            case FrameType.Close:
-                if (data.Length == 1 || data.Length > 125)
-                    throw new WebSocketException(WebSocketStatusCodes.ProtocolError);
-                    
-                if (data.Length >= 2)
-                {
-                    var closeCode = (ushort)new Span<byte>(data, 0, 2).ToLittleEndianInt();
-                    if (!WebSocketStatusCodes.ValidCloseCodes.Contains(closeCode) && (closeCode < 3000 || closeCode > 4999))
+                case FrameType.Close:
+                    if (data.Length == 1 || data.Length > 125)
                         throw new WebSocketException(WebSocketStatusCodes.ProtocolError);
-                }
-                
-                if (data.Length > 2)
-                    ReadUTF8PayloadData(data.Skip(2).ToArray());
-                
-                _onClose();
-                break;
-            case FrameType.Binary:
-                _onBinary(data);
-                break;
-            case FrameType.Ping:
-                _onPing(data);
-                break;
-            case FrameType.Pong:
-                _onPong(data);
-                break;
-            case FrameType.Text:
-                _onMessage(ReadUTF8PayloadData(data));
-                break;
-            default:
-                FleckLog.Debug("Received unhandled " + frameType);
-                break;
+
+                    if (data.Length >= 2)
+                    {
+                        var closeCode = (ushort)new Span<byte>(data, 0, 2).ToLittleEndianInt();
+                        if (!WebSocketStatusCodes.ValidCloseCodes.Contains(closeCode) && (closeCode < 3000 || closeCode > 4999))
+                            throw new WebSocketException(WebSocketStatusCodes.ProtocolError);
+                    }
+
+                    if (data.Length > 2)
+                        ReadUTF8PayloadData(data.Skip(2).ToArray());
+
+                    _onClose();
+                    break;
+                case FrameType.Binary:
+                    _onBinary(data);
+                    break;
+                case FrameType.Ping:
+                    _onPing(data);
+                    break;
+                case FrameType.Pong:
+                    _onPong(data);
+                    break;
+                case FrameType.Text:
+                    _onMessage(ReadUTF8PayloadData(data));
+                    break;
+                default:
+                    FleckLog.Debug("Received unhandled " + frameType);
+                    break;
             }
         }
-        
+
         internal static string CreateResponseKey(string requestKey)
         {
             var combined = requestKey + WebSocketResponseGuid;
@@ -251,14 +256,14 @@ namespace Fleck.Handlers
 
             return Convert.ToBase64String(bytes);
         }
-        
+
         internal static string ReadUTF8PayloadData(byte[] bytes)
         {
             try
             {
                 return UTF8.GetString(bytes);
             }
-            catch(ArgumentException)
+            catch (ArgumentException)
             {
                 throw new WebSocketException(WebSocketStatusCodes.InvalidFramePayloadData);
             }
