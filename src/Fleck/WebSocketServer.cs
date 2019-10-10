@@ -3,7 +3,6 @@ using System.Net;
 using System.Net.Sockets;
 using System.Security.Cryptography.X509Certificates;
 using System.Collections.Generic;
-using System.Runtime.InteropServices;
 using System.Security.Authentication;
 using Fleck.Helpers;
 
@@ -37,22 +36,17 @@ namespace Fleck
             }
 
             ListenerSocket = new SocketWrapper(socket);
-            SupportedSubProtocols = new string[0];
         }
 
         public ISocket ListenerSocket { get; set; }
-        public string Location { get; private set; }
+        public string Location { get; }
         public bool SupportDualStack { get; }
         public int Port { get; private set; }
         public X509Certificate2 Certificate { get; set; }
         public SslProtocols EnabledSslProtocols { get; set; }
-        public IEnumerable<string> SupportedSubProtocols { get; set; }
         public bool RestartAfterListenError {get; set; }
 
-        public bool IsSecure
-        {
-            get { return _scheme == "wss" && Certificate != null; }
-        }
+        public bool IsSecure => _scheme == "wss" && Certificate != null;
 
         public void Dispose()
         {
@@ -83,19 +77,13 @@ namespace Fleck
             ListenerSocket.Bind(ipLocal);
             ListenerSocket.Listen(100);
             Port = ((IPEndPoint)ListenerSocket.LocalEndPoint).Port;
-            FleckLog.Info(string.Format("Server started at {0} (actual port {1})", Location, Port));
+            FleckLog.Info($"Server started at {Location} (actual port {Port})");
             if (_scheme == "wss")
             {
                 if (Certificate == null)
                 {
                     FleckLog.Error("Scheme cannot be 'wss' without a Certificate");
                     return;
-                }
-
-                if (EnabledSslProtocols == SslProtocols.None)
-                {
-                    EnabledSslProtocols = SslProtocols.Tls;
-                    FleckLog.Debug("Using default TLS 1.0 security protocol.");
                 }
             }
             ListenForClients();
@@ -128,7 +116,7 @@ namespace Fleck
         {
             if (clientSocket == null) return; // socket closed
 
-            FleckLog.Debug(String.Format("Client connected from {0}:{1}", clientSocket.RemoteIpAddress, clientSocket.RemotePort.ToString()));
+            FleckLog.Debug($"Client connected from {clientSocket.RemoteIpAddress}:{clientSocket.RemotePort.ToString()}");
             ListenForClients();
 
             WebSocketConnection connection = null;
@@ -142,8 +130,7 @@ namespace Fleck
                                                  connection.Close,
                                                  b => connection.OnBinary(b),
                                                  b => connection.OnPing(b),
-                                                 b => connection.OnPong(b)),
-                s => SubProtocolNegotiator.Negotiate(SupportedSubProtocols, s));
+                                                 b => connection.OnPong(b)));
 
             if (IsSecure)
             {

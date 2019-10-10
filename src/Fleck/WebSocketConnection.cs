@@ -8,7 +8,11 @@ namespace Fleck
 {
   public class WebSocketConnection : IWebSocketConnection
   {
-    public WebSocketConnection(ISocket socket, Action<IWebSocketConnection> initialize, Func<byte[], WebSocketHttpRequest> parseRequest, Func<WebSocketHttpRequest, IHandler> handlerFactory, Func<IEnumerable<string>, string> negotiateSubProtocol)
+    public WebSocketConnection(
+        ISocket socket,
+        Action<IWebSocketConnection> initialize,
+        Func<byte[], WebSocketHttpRequest> parseRequest,
+        Func<WebSocketHttpRequest, IHandler> handlerFactory)
     {
       Socket = socket;
       OnOpen = () => { };
@@ -21,14 +25,12 @@ namespace Fleck
       _initialize = initialize;
       _handlerFactory = handlerFactory;
       _parseRequest = parseRequest;
-      _negotiateSubProtocol = negotiateSubProtocol;
     }
 
     public ISocket Socket { get; set; }
 
     private readonly Action<IWebSocketConnection> _initialize;
     private readonly Func<WebSocketHttpRequest, IHandler> _handlerFactory;
-    private readonly Func<IEnumerable<string>, string> _negotiateSubProtocol;
     readonly Func<byte[], WebSocketHttpRequest> _parseRequest;
 
     public IHandler Handler { get; set; }
@@ -135,12 +137,11 @@ namespace Fleck
       Handler = _handlerFactory(request);
       if (Handler == null)
         return;
-      var subProtocol = _negotiateSubProtocol(request.SubProtocols);
-      ConnectionInfo = WebSocketConnectionInfo.Create(request, Socket.RemoteIpAddress, Socket.RemotePort, subProtocol);
+      ConnectionInfo = WebSocketConnectionInfo.Create(request, Socket.RemoteIpAddress, Socket.RemotePort);
 
       _initialize(this);
 
-      var handshake = Handler.CreateHandshake(subProtocol);
+      var handshake = Handler.CreateHandshake();
       SendBytes(handshake, OnOpen);
     }
 

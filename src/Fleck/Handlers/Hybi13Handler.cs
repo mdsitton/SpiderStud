@@ -7,24 +7,88 @@ using System.Text;
 
 namespace Fleck.Handlers
 {
-    public static class Hybi13Handler
+    internal class Hybi13Handler : IHandler
     {
-        public static IHandler Create(WebSocketHttpRequest request, Action<string> onMessage, Action onClose, Action<byte[]> onBinary, Action<byte[]> onPing, Action<byte[]> onPong)
+        private const string WebSocketResponseGuid = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
+        private static readonly Encoding UTF8 = new UTF8Encoding(false, true);
+        private static readonly SHA1 SHA1 = SHA1.Create();
+
+        private readonly ReadState _readState;
+        private readonly WebSocketHttpRequest _request;
+        private readonly Action<string> _onMessage;
+        private readonly Action _onClose;
+        private readonly Action<byte[]> _onBinary;
+        private readonly Action<byte[]> _onPing;
+        private readonly Action<byte[]> _onPong;
+        private readonly List<byte> _data;
+
+        public Hybi13Handler(
+            WebSocketHttpRequest request,
+            Action<string> onMessage,
+            Action onClose,
+            Action<byte[]> onBinary,
+            Action<byte[]> onPing,
+            Action<byte[]> onPong)
         {
-            var readState = new ReadState();
-            return new ComposableHandler
-            {
-                Handshake = sub => Hybi13Handler.BuildHandshake(request, sub),
-                TextFrame = s => Hybi13Handler.FrameData(Encoding.UTF8.GetBytes(s), FrameType.Text),
-                BinaryFrame = s => Hybi13Handler.FrameData(s, FrameType.Binary),
-                PingFrame = s => Hybi13Handler.FrameData(s, FrameType.Ping),
-                PongFrame = s => Hybi13Handler.FrameData(s, FrameType.Pong),
-                CloseFrame = i => Hybi13Handler.FrameData(i.ToBigEndianBytes<ushort>(), FrameType.Close),
-                ReceiveData = d => Hybi13Handler.ReceiveData(d, readState, (op, data) => Hybi13Handler.ProcessFrame(op, data, onMessage, onClose, onBinary, onPing, onPong))
-            };
+            _readState = new ReadState();
+            _request = request;
+            _onMessage = onMessage;
+            _onClose = onClose;
+            _onBinary = onBinary;
+            _onPing = onPing;
+            _onPong = onPong;
+            _data = new List<byte>(4 * 1024);
+        }
+
+        public void Receive(IEnumerable<byte> data)
+        {
+            _data.AddRange(data);
+            ReceiveData(_data, _readState, ProcessFrame);
+        }
+
+        public byte[] CreateHandshake()
+        {
+            FleckLog.Debug("Building Hybi-14 Response");
+            
+            var builder = new StringBuilder();
+
+            builder.Append("HTTP/1.1 101 Switching Protocols\r\n");
+            builder.Append("Upgrade: websocket\r\n");
+            builder.Append("Connection: Upgrade\r\n");
+
+            var responseKey =  CreateResponseKey(_request["Sec-WebSocket-Key"]);
+            builder.AppendFormat("Sec-WebSocket-Accept: {0}\r\n", responseKey);
+            builder.Append("\r\n");
+
+            return Encoding.ASCII.GetBytes(builder.ToString());
+        }
+
+        public byte[] FrameText(string text)
+        {
+            return FrameData(UTF8.GetBytes(text), FrameType.Text);
+        }
+
+        public byte[] FrameBinary(byte[] bytes)
+        {
+            return FrameData(bytes, FrameType.Binary);
+        }
+
+        public byte[] FramePing(byte[] bytes)
+        {
+            return FrameData(bytes, FrameType.Ping);
+        }
+
+        public byte[] FramePong(byte[] bytes)
+        {
+            return FrameData(bytes, FrameType.Pong);
+        }
+
+        public byte[] FrameClose(int code)
+        {
+            return FrameData(code.ToBigEndianBytes<ushort>(), FrameType.Close);
         }
         
-        public static byte[] FrameData(byte[] payload, FrameType frameType)
+        private byte[] FrameData(byte[] payload, FrameType frameType)
         {
             var memoryStream = new MemoryStream();
             byte op = (byte)((byte)frameType + 128);
@@ -48,7 +112,7 @@ namespace Fleck.Handlers
             return memoryStream.ToArray();
         }
         
-        public static void ReceiveData(List<byte> data, ReadState readState, Action<FrameType, byte[]> processFrame)
+        private void ReceiveData(List<byte> data, ReadState readState, Action<FrameType, byte[]> processFrame)
         {
             
             while (data.Count >= 2)
@@ -120,7 +184,7 @@ namespace Fleck.Handlers
             }
         }
         
-        public static void ProcessFrame(FrameType frameType, byte[] data, Action<string> onMessage, Action onClose, Action<byte[]> onBinary, Action<byte[]> onPing, Action<byte[]> onPong)
+        private void ProcessFrame(FrameType frameType, byte[] data)
         {
             switch (frameType)
             {
@@ -138,19 +202,19 @@ namespace Fleck.Handlers
                 if (data.Length > 2)
                     ReadUTF8PayloadData(data.Skip(2).ToArray());
                 
-                onClose();
+                _onClose();
                 break;
             case FrameType.Binary:
-                onBinary(data);
+                _onBinary(data);
                 break;
             case FrameType.Ping:
-                onPing(data);
+                _onPing(data);
                 break;
             case FrameType.Pong:
-                onPong(data);
+                _onPong(data);
                 break;
             case FrameType.Text:
-                onMessage(ReadUTF8PayloadData(data));
+                _onMessage(ReadUTF8PayloadData(data));
                 break;
             default:
                 FleckLog.Debug("Received unhandled " + frameType);
@@ -158,43 +222,20 @@ namespace Fleck.Handlers
             }
         }
         
-        
-        public static byte[] BuildHandshake(WebSocketHttpRequest request, string subProtocol)
-        {
-            FleckLog.Debug("Building Hybi-14 Response");
-            
-            var builder = new StringBuilder();
-
-            builder.Append("HTTP/1.1 101 Switching Protocols\r\n");
-            builder.Append("Upgrade: websocket\r\n");
-            builder.Append("Connection: Upgrade\r\n");
-            if (subProtocol != null)
-              builder.AppendFormat("Sec-WebSocket-Protocol: {0}\r\n", subProtocol);
-
-            var responseKey =  CreateResponseKey(request["Sec-WebSocket-Key"]);
-            builder.AppendFormat("Sec-WebSocket-Accept: {0}\r\n", responseKey);
-            builder.Append("\r\n");
-
-            return Encoding.ASCII.GetBytes(builder.ToString());
-        }
-
-        private const string WebSocketResponseGuid = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
-        
-        public static string CreateResponseKey(string requestKey)
+        internal static string CreateResponseKey(string requestKey)
         {
             var combined = requestKey + WebSocketResponseGuid;
 
-            var bytes = SHA1.Create().ComputeHash(Encoding.ASCII.GetBytes(combined));
+            var bytes = SHA1.ComputeHash(Encoding.ASCII.GetBytes(combined));
 
             return Convert.ToBase64String(bytes);
         }
         
-        private static string ReadUTF8PayloadData(byte[] bytes)
+        internal static string ReadUTF8PayloadData(byte[] bytes)
         {
-            var encoding = new UTF8Encoding(false, true);
             try
             {
-                return encoding.GetString(bytes);
+                return UTF8.GetString(bytes);
             }
             catch(ArgumentException)
             {
@@ -202,5 +243,4 @@ namespace Fleck.Handlers
             }
         }
     }
-
 }

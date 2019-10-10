@@ -11,7 +11,7 @@ namespace Fleck
     public interface ISocket
     {
         bool Connected { get; }
-        string RemoteIpAddress { get; }
+        IPAddress RemoteIpAddress { get; }
         int RemotePort { get; }
         Stream Stream { get; }
         bool NoDelay { get; set; }

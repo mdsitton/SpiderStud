@@ -23,12 +23,12 @@ namespace Fleck
         private CancellationTokenSource _tokenSource;
         private TaskFactory _taskFactory;
 
-        public string RemoteIpAddress
+        public IPAddress RemoteIpAddress
         {
             get
             {
                 var endpoint = _socket.RemoteEndPoint as IPEndPoint;
-                return endpoint != null ? endpoint.Address.ToString() : null;
+                return endpoint?.Address;
             }
         }
 

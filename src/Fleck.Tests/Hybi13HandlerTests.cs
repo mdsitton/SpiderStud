@@ -27,7 +27,7 @@ namespace Fleck.Tests
             _onPing = delegate { };
             _onPong = delegate { };
 
-            _handler = Hybi13Handler.Create(_request, s => _onMessage(s), () => _onClose(), b => _onBinary(b), b => _onPing(b), b => _onPong(b));
+            _handler = new Hybi13Handler(_request, s => _onMessage(s), () => _onClose(), b => _onBinary(b), b => _onPing(b), b => _onPong(b));
         }
 
         [Test]
@@ -52,11 +52,10 @@ namespace Fleck.Tests
             _request.Headers["Connection"] = "Upgrade";
             _request.Headers["Sec-WebSocket-Key"] = "dGhlIHNhbXBsZSBub25jZQ==";
             _request.Headers["Origin"] = "http://example.com";
-            _request.Headers["Sec-WebSocket-Protocol"] = "chat, superchat";
             _request.Headers["Sec-WebSocket-Version"] = "13";
             _request.Bytes = Encoding.ASCII.GetBytes(ExampleRequest);
 
-            var result = _handler.CreateHandshake("superchat");
+            var result = _handler.CreateHandshake();
 
             Assert.AreEqual(ExampleResponse, Encoding.ASCII.GetString(result));
         }
@@ -394,7 +393,6 @@ namespace Fleck.Tests
 "Connection: Upgrade\r\n" +
 "Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n" +
 "Origin: http://example.com\r\n" +
-"Sec-WebSocket-Protocol: chat, superchat\r\n" +
 "Sec-WebSocket-Version: 13\r\n" +
 "\r\n";
 
@@ -402,7 +400,6 @@ namespace Fleck.Tests
 "HTTP/1.1 101 Switching Protocols\r\n" +
 "Upgrade: websocket\r\n" +
 "Connection: Upgrade\r\n" +
-"Sec-WebSocket-Protocol: superchat\r\n" +
 "Sec-WebSocket-Accept: s3pPLMBiTxaQ9kYGzzhZRbK+xOo=\r\n" +
 "\r\n";
     }

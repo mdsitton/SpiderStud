@@ -1,8 +1,11 @@
 using System;
+using System.Runtime.CompilerServices;
+
+[assembly: InternalsVisibleTo("Fleck.Tests")]
 
 namespace Fleck
 {
-    public static class IntExtensions
+    internal static class IntExtensions
     {
         public static byte[] ToBigEndianBytes<T>(this int source)
         {
