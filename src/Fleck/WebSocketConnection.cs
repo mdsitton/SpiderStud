@@ -62,17 +62,17 @@ namespace Fleck
             return Send(Handler.FrameText(message));
         }
 
-        public Task Send(byte[] message)
+        public Task Send(ArraySegment<byte> message)
         {
             return Send(Handler.FrameBinary(message));
         }
 
-        public Task SendPing(byte[] message)
+        public Task SendPing(ArraySegment<byte> message)
         {
             return Send(Handler.FramePing(message));
         }
 
-        public Task SendPong(byte[] message)
+        public Task SendPong(ArraySegment<byte> message)
         {
             return Send(Handler.FramePong(message));
         }

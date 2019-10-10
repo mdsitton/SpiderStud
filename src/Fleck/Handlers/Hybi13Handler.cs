@@ -101,17 +101,17 @@ namespace Fleck.Handlers
             return FrameData(UTF8.GetBytes(text), FrameType.Text);
         }
 
-        public MemoryBuffer FrameBinary(byte[] bytes)
+        public MemoryBuffer FrameBinary(ArraySegment<byte> bytes)
         {
             return FrameData(bytes, FrameType.Binary);
         }
 
-        public MemoryBuffer FramePing(byte[] bytes)
+        public MemoryBuffer FramePing(ArraySegment<byte> bytes)
         {
             return FrameData(bytes, FrameType.Ping);
         }
 
-        public MemoryBuffer FramePong(byte[] bytes)
+        public MemoryBuffer FramePong(ArraySegment<byte> bytes)
         {
             return FrameData(bytes, FrameType.Pong);
         }
@@ -146,7 +146,8 @@ namespace Fleck.Handlers
                 writer.Write((byte)payload.Length);
             }
 
-            writer.Write(payload);
+            if (payload.Length > 0)
+                writer.Write(payload);
 
             return new MemoryBuffer(data, writer.Length);
         }
@@ -155,6 +156,8 @@ namespace Fleck.Handlers
         {
             while (_dataLen >= 2)
             {
+                FleckLog.Debug("Trying to read a packet");
+
                 var isFinal = (_data[0] & 128) != 0;
                 var reservedBits = (_data[0] & 112);
                 var frameType = (FrameType)(_data[0] & 15);
@@ -190,6 +193,8 @@ namespace Fleck.Handlers
                     payloadLength = length;
                 }
 
+                FleckLog.Debug($"Expecting {payloadLength} byte payload");
+
                 if (_dataLen < index + 4)
                     return; //Not complete
 
@@ -220,7 +225,8 @@ namespace Fleck.Handlers
                     _frameType = frameType;
 
                 if (isFinal && _frameType.HasValue)
-                {   
+                {
+                    FleckLog.Debug($"Frame finished: {_frameType.Value}, {_messageLen} bytes");
                     ProcessFrame(_frameType.Value, new ArraySegment<byte>(_message, 0, _messageLen));
                     Clear();
                 }

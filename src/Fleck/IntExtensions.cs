@@ -46,8 +46,11 @@ namespace Fleck
             if (memory.Length != sizeof(T))
                 throw new ArgumentException($"Cannot copy from memory: expected {sizeof(T)} bytes, got {memory.Length}");
 
-            memory.Reverse();
-            fixed (byte* ptr = &memory[0])
+            Span<byte> copy = stackalloc byte[memory.Length];
+            memory.CopyTo(copy);
+
+            copy.Reverse();
+            fixed (byte* ptr = &copy[0])
             {
                 return *(T*)ptr;
             }

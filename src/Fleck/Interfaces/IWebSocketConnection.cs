@@ -15,9 +15,9 @@ namespace Fleck
         BinaryDataHandler OnPong { get; set; }
         Action<Exception> OnError { get; set; }
         Task Send(string message);
-        Task Send(byte[] message);
-        Task SendPing(byte[] message);
-        Task SendPong(byte[] message);
+        Task Send(ArraySegment<byte> message);
+        Task SendPing(ArraySegment<byte> message);
+        Task SendPong(ArraySegment<byte> message);
         void Close();
         IWebSocketConnectionInfo ConnectionInfo { get; }
         bool IsAvailable { get; }
