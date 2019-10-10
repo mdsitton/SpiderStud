@@ -1,16 +1,16 @@
-using System.Collections.Generic;
+using System;
 
 namespace Fleck
 {
-    public interface IHandler
+    public interface IHandler : IDisposable
     {
-        byte[] CreateHandshake();
-        void Receive(IEnumerable<byte> data);
-        byte[] FrameText(string text);
-        byte[] FrameBinary(byte[] bytes);
-        byte[] FramePing(byte[] bytes);
-        byte[] FramePong(byte[] bytes);
-        byte[] FrameClose(int code);
+        void Receive(Span<byte> newData);
+        MemoryBuffer CreateHandshake();
+        MemoryBuffer FrameText(string text);
+        MemoryBuffer FrameBinary(byte[] bytes);
+        MemoryBuffer FramePing(byte[] bytes);
+        MemoryBuffer FramePong(byte[] bytes);
+        MemoryBuffer FrameClose(ushort code);
     }
 }
 

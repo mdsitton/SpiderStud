@@ -40,7 +40,7 @@ namespace Fleck.Tests
             SetupReadLengths(0);
             _connection.StartReceiving();
             _connection.Send("Zing");
-            _socketMock.Verify(x => x.Send(It.IsAny<byte[]>(), It.IsAny<Action>(), It.IsAny<Action<Exception>>()), Times.Never());
+            _socketMock.Verify(x => x.Send(new MemoryBuffer(It.IsAny<byte[]>()), It.IsAny<Action>(), It.IsAny<Action<Exception>>()), Times.Never());
         }
 
         [Test]
@@ -49,7 +49,7 @@ namespace Fleck.Tests
             _connection.Handler = _handlerMock.Object;
             _socketMock.SetupGet(x => x.Connected).Returns(false);
             _connection.Send("Zing");
-            _socketMock.Verify(x => x.Send(It.IsAny<byte[]>(), It.IsAny<Action>(), It.IsAny<Action<Exception>>()), Times.Never());
+            _socketMock.Verify(x => x.Send(new MemoryBuffer(It.IsAny<byte[]>()), It.IsAny<Action>(), It.IsAny<Action<Exception>>()), Times.Never());
         }
 
         [Test]

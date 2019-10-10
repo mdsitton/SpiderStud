@@ -57,7 +57,7 @@ namespace Fleck.Tests
 
             var result = _handler.CreateHandshake();
 
-            Assert.AreEqual(ExampleResponse, Encoding.ASCII.GetString(result));
+            Assert.AreEqual(ExampleResponse, Encoding.ASCII.GetString(result.Data));
         }
 
         [Test]
@@ -66,7 +66,8 @@ namespace Fleck.Tests
             //FIN:1 Type:1 (text) LEN:5 Payload:"Hello"
             var expected = new byte[]{ 129, 5, 72, 101, 108, 108, 111 };
 
-            var result = _handler.FrameText("Hello");
+            var buffer = _handler.FrameText("Hello");
+            var result = buffer.Data.Take(buffer.Length).ToArray();
 
             Assert.AreEqual(expected, result);
         }
@@ -77,7 +78,8 @@ namespace Fleck.Tests
             //FIN:1 Type:5 (text) LEN:2 Payload:"Hello"
             var expected = new byte[]{ 136, 2, 3, 234};
 
-            var result = _handler.FrameClose(1002);
+            var buffer = _handler.FrameClose(1002);
+            var result = buffer.Data.Take(buffer.Length).ToArray();
 
             Assert.AreEqual(expected, result);
         }
@@ -191,7 +193,7 @@ namespace Fleck.Tests
                     IsFinal = true,
                     IsMasked = true,
                     MaskKey = 5232,
-                    Payload = 1000.ToBigEndianBytes<ushort>()
+                    Payload = 1000.ToBigEndianBytes<ushort>().Memory.ToArray()
                 };
 
             var hit = false;
@@ -204,7 +206,7 @@ namespace Fleck.Tests
         [Test]
         public void ShouldCloseOnCloseFromText()
         {
-            var payload = 1000.ToBigEndianBytes<ushort>().Concat(Encoding.UTF8.GetBytes("Reason")).ToArray();
+            var payload = 1000.ToBigEndianBytes<ushort>().Memory.ToArray().Concat(Encoding.UTF8.GetBytes("Reason")).ToArray();
             var frame = new Hybi14DataFrame
                 {
                     FrameType = FrameType.Close,
@@ -230,7 +232,7 @@ namespace Fleck.Tests
                     IsFinal = true,
                     IsMasked = true,
                     MaskKey = 5232,
-                    Payload = 5000.ToBigEndianBytes<ushort>()
+                    Payload = 5000.ToBigEndianBytes<ushort>().Memory.ToArray()
                 };
 
             var ex = Assert.Throws<WebSocketException>(() => _handler.Receive(frame.ToBytes()));
@@ -262,7 +264,7 @@ namespace Fleck.Tests
                     IsFinal = true,
                     IsMasked = true,
                     MaskKey = 5232,
-                    Payload = 1000.ToBigEndianBytes<ushort>()
+                    Payload = 1000.ToBigEndianBytes<ushort>().Memory.ToArray()
                 };
 
             var ex = Assert.Throws<WebSocketException>(() => _handler.Receive(frame.ToBytes()));

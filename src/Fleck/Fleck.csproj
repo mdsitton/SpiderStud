@@ -10,6 +10,7 @@
     <RepositoryUrl>https://github.com/statianzo/Fleck</RepositoryUrl>
     <PackageTags>websockets server html5</PackageTags>
     <TargetFrameworks>netstandard2.0</TargetFrameworks>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="System.Buffers" Version="4.5.0" />

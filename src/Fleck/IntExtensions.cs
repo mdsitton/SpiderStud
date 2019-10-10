@@ -1,44 +1,56 @@
 using System;
+using System.Buffers;
 using System.Runtime.CompilerServices;
 
 [assembly: InternalsVisibleTo("Fleck.Tests")]
 
 namespace Fleck
 {
-    internal static class IntExtensions
+    // assuming little endian CPU because almost nothing is big endian
+    internal static unsafe class IntExtensions
     {
-        public static byte[] ToBigEndianBytes<T>(this int source)
+        public static IMemoryOwner<byte> ToBigEndianBytes<T>(this int source)
         {
-            byte[] bytes;
-            
-            var type = typeof(T);
-            if (type == typeof(ushort))
-                bytes = BitConverter.GetBytes((ushort)source);
-            else if (type == typeof(ulong))
-                bytes = BitConverter.GetBytes((ulong)source);
-            else if (type == typeof(int))
-                bytes = BitConverter.GetBytes(source);
-            else
-                throw new InvalidCastException("Cannot be cast to T");
-                
-            if (BitConverter.IsLittleEndian)
-                Array.Reverse(bytes);
-            return bytes;
+            if (typeof(T) == typeof(ushort))
+                return CopyToMemory((ushort)source);
+
+            if (typeof(T) == typeof(ulong))
+                return CopyToMemory((ulong)source);
+
+            throw new InvalidCastException("Cannot be cast to T");
         }
 
-        public static int ToLittleEndianInt(this byte[] source)
+        public static int ToLittleEndianInt(this Span<byte> source)
         {
-            if(BitConverter.IsLittleEndian)
-                Array.Reverse(source);
+            if (source.Length == 2)
+                return CopyFromMemory<ushort>(source);
 
-            if(source.Length == 2)
-                return BitConverter.ToUInt16(source, 0);
-
-            if(source.Length == 8)
-                return (int)BitConverter.ToUInt64(source, 0);
+            if (source.Length == 8)
+                return (int)CopyFromMemory<ulong>(source);
 
             throw new ArgumentException("Unsupported Size");
         }
+
+        private static IMemoryOwner<byte> CopyToMemory<T>(T value) where T : unmanaged
+        {
+            var valueSpan = new Span<byte>(&value, sizeof(T));
+            valueSpan.Reverse();
+
+            var memory = MemoryPool<byte>.Shared.Rent(sizeof(T));
+            valueSpan.CopyTo(memory.Memory.Span);
+            return memory;
+        }
+
+        private static T CopyFromMemory<T>(Span<byte> memory) where T : unmanaged
+        {
+            if (memory.Length != sizeof(T))
+                throw new ArgumentException($"Cannot copy from memory: expected {sizeof(T)} bytes, got {memory.Length}");
+
+            memory.Reverse();
+            fixed (byte* ptr = &memory[0])
+            {
+                return *(T*)ptr;
+            }
+        }
     }
 }
-

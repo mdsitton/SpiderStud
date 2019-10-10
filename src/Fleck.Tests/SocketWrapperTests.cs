@@ -79,7 +79,7 @@ namespace Fleck.Tests
             Exception ex = null;
             _wrapper.Dispose();
             
-            var task = _wrapper.Send(new byte[1], () => {}, e => {ex = e;});
+            var task = _wrapper.Send(new MemoryBuffer(new byte[1]), () => {}, e => {ex = e;});
             
             Assert.IsNull(task);
             Assert.IsNull(ex);

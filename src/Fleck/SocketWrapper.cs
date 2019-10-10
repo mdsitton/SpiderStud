@@ -165,7 +165,7 @@ namespace Fleck
             return 0;
         }
 
-        public Task Send(byte[] buffer, Action callback, Action<Exception> error)
+        public Task Send(MemoryBuffer buffer, Action callback, Action<Exception> error)
         {
             if (_tokenSource.IsCancellationRequested)
                 return null;
@@ -173,7 +173,7 @@ namespace Fleck
             try
             {
                 Func<AsyncCallback, object, IAsyncResult> begin =
-                    (cb, s) => _stream.BeginWrite(buffer, 0, buffer.Length, cb, s);
+                    (cb, s) => _stream.BeginWrite(buffer.Data, 0, buffer.Length, cb, s);
 
                 Task task = Task.Factory.FromAsync(begin, _stream.EndWrite, null);
                 task.ContinueWith(t => callback(), TaskContinuationOptions.NotOnFaulted)

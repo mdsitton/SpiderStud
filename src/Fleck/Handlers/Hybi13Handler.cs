@@ -1,9 +1,9 @@
 using System;
-using System.Collections.Generic;
-using System.IO;
+using System.Buffers;
 using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
+using System.Threading;
 
 namespace Fleck.Handlers
 {
@@ -12,6 +12,7 @@ namespace Fleck.Handlers
         private const string WebSocketResponseGuid = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
         private static readonly Encoding UTF8 = new UTF8Encoding(false, true);
         private static readonly SHA1 SHA1 = SHA1.Create();
+        private static readonly ThreadLocal<StringBuilder> StringBuilder = new ThreadLocal<StringBuilder>(() => new StringBuilder(1024));
 
         private readonly ReadState _readState;
         private readonly WebSocketHttpRequest _request;
@@ -20,7 +21,8 @@ namespace Fleck.Handlers
         private readonly Action<byte[]> _onBinary;
         private readonly Action<byte[]> _onPing;
         private readonly Action<byte[]> _onPong;
-        private readonly List<byte> _data;
+        private byte[] _data;
+        private int _dataLen;
 
         public Hybi13Handler(
             WebSocketHttpRequest request,
@@ -37,20 +39,37 @@ namespace Fleck.Handlers
             _onBinary = onBinary;
             _onPing = onPing;
             _onPong = onPong;
-            _data = new List<byte>(4 * 1024);
+            _data = ArrayPool<byte>.Shared.Rent(1 * 1024 * 1024); // 1 MB read buffer
+            _dataLen = 0;
         }
 
-        public void Receive(IEnumerable<byte> data)
+        public void Dispose()
         {
-            _data.AddRange(data);
-            ReceiveData(_data, _readState, ProcessFrame);
+            if (_data != null)
+            {
+                ArrayPool<byte>.Shared.Return(_data);
+                _data = null;
+            }
         }
 
-        public byte[] CreateHandshake()
+        public void Receive(Span<byte> newData)
+        {
+            if (newData.Length + _dataLen >= _data.Length)
+                throw new WebSocketException(WebSocketStatusCodes.MessageTooBig);
+
+            var dest = new Span<byte>(_data, _dataLen, newData.Length);
+            newData.CopyTo(dest);
+            _dataLen += newData.Length;
+
+            ReceiveData();
+        }
+
+        public MemoryBuffer CreateHandshake()
         {
             FleckLog.Debug("Building Hybi-14 Response");
-            
-            var builder = new StringBuilder();
+
+            var builder = StringBuilder.Value;
+            builder.Clear();
 
             builder.Append("HTTP/1.1 101 Switching Protocols\r\n");
             builder.Append("Upgrade: websocket\r\n");
@@ -60,74 +79,75 @@ namespace Fleck.Handlers
             builder.AppendFormat("Sec-WebSocket-Accept: {0}\r\n", responseKey);
             builder.Append("\r\n");
 
-            return Encoding.ASCII.GetBytes(builder.ToString());
+            var bytes = UTF8.GetBytes(builder.ToString());
+            return new MemoryBuffer(bytes, bytes.Length);
         }
 
-        public byte[] FrameText(string text)
+        public MemoryBuffer FrameText(string text)
         {
             return FrameData(UTF8.GetBytes(text), FrameType.Text);
         }
 
-        public byte[] FrameBinary(byte[] bytes)
+        public MemoryBuffer FrameBinary(byte[] bytes)
         {
             return FrameData(bytes, FrameType.Binary);
         }
 
-        public byte[] FramePing(byte[] bytes)
+        public MemoryBuffer FramePing(byte[] bytes)
         {
             return FrameData(bytes, FrameType.Ping);
         }
 
-        public byte[] FramePong(byte[] bytes)
+        public MemoryBuffer FramePong(byte[] bytes)
         {
             return FrameData(bytes, FrameType.Pong);
         }
 
-        public byte[] FrameClose(int code)
+        public unsafe MemoryBuffer FrameClose(ushort code)
         {
-            return FrameData(code.ToBigEndianBytes<ushort>(), FrameType.Close);
+            var codeSpan = new Span<byte>(&code, sizeof(ushort));
+            codeSpan.Reverse();
+            return FrameData(codeSpan, FrameType.Close);
         }
         
-        private byte[] FrameData(byte[] payload, FrameType frameType)
+        private MemoryBuffer FrameData(Span<byte> payload, FrameType frameType)
         {
-            var memoryStream = new MemoryStream();
+            var data = ArrayPool<byte>.Shared.Rent(payload.Length + 16);
+            var writer = new SpanWriter(data);
+
             byte op = (byte)((byte)frameType + 128);
+            writer.Write(op);
             
-            memoryStream.WriteByte(op);
-            
-            if (payload.Length > UInt16.MaxValue) {
-                memoryStream.WriteByte(127);
-                var lengthBytes = payload.Length.ToBigEndianBytes<ulong>();
-                memoryStream.Write(lengthBytes, 0, lengthBytes.Length);
+            if (payload.Length > ushort.MaxValue) {
+                writer.Write<byte>(127);
+                writer.Write((ulong)payload.Length);
             } else if (payload.Length > 125) {
-                memoryStream.WriteByte(126);
-                var lengthBytes = payload.Length.ToBigEndianBytes<ushort>();
-                memoryStream.Write(lengthBytes, 0, lengthBytes.Length);
+                writer.Write<byte>(126);
+                writer.Write((ushort)payload.Length);
             } else {
-                memoryStream.WriteByte((byte)payload.Length);
+                writer.Write((byte)payload.Length);
             }
             
-            memoryStream.Write(payload, 0, payload.Length);
-            
-            return memoryStream.ToArray();
+            writer.Write(payload);
+
+            return new MemoryBuffer(data, writer.Length);
         }
         
-        private void ReceiveData(List<byte> data, ReadState readState, Action<FrameType, byte[]> processFrame)
+        private void ReceiveData()
         {
-            
-            while (data.Count >= 2)
+            while (_dataLen >= 2)
             {
-                var isFinal = (data[0] & 128) != 0;
-                var reservedBits = (data[0] & 112);
-                var frameType = (FrameType)(data[0] & 15);
-                var isMasked = (data[1] & 128) != 0;
-                var length = (data[1] & 127);
+                var isFinal = (_data[0] & 128) != 0;
+                var reservedBits = (_data[0] & 112);
+                var frameType = (FrameType)(_data[0] & 15);
+                var isMasked = (_data[1] & 128) != 0;
+                var length = (_data[1] & 127);
                 
                 
                 if (!isMasked
-                    || !Enum.IsDefined(typeof(FrameType), frameType)
-                    || reservedBits != 0 //Must be zero per spec 5.2
-                    || (frameType == FrameType.Continuation && !readState.FrameType.HasValue))
+                    || !frameType.IsDefined()
+                    || reservedBits != 0 // Must be zero per spec 5.2
+                    || (frameType == FrameType.Continuation && !_readState.FrameType.HasValue))
                     throw new WebSocketException(WebSocketStatusCodes.ProtocolError);
                 
                 var index = 2;
@@ -135,16 +155,16 @@ namespace Fleck.Handlers
                 
                 if (length == 127)
                 {
-                    if (data.Count < index + 8)
+                    if (_dataLen < index + 8)
                         return; //Not complete
-                    payloadLength = data.Skip(index).Take(8).ToArray().ToLittleEndianInt();
+                    payloadLength = new Span<byte>(_data, index, 8).ToLittleEndianInt();
                     index += 8;
                 }
                 else if (length == 126)
                 {
-                    if (data.Count < index + 2)
+                    if (_dataLen < index + 2)
                         return; //Not complete
-                    payloadLength = data.Skip(index).Take(2).ToArray().ToLittleEndianInt();
+                    payloadLength = new Span<byte>(_data, index, 2).ToLittleEndianInt();
                     index += 2;
                 }
                 else
@@ -152,34 +172,35 @@ namespace Fleck.Handlers
                     payloadLength = length;
                 }
                 
-                if (data.Count < index + 4) 
+                if (_dataLen < index + 4) 
                     return; //Not complete
                
-                var maskBytes = data.Skip(index).Take(4).ToArray();
-                
+                var maskBytes = new Span<byte>(_data, index, 4);
                 index += 4;
                 
-                
-                if (data.Count < index + payloadLength) 
+                if (_dataLen < index + payloadLength) 
                     return; //Not complete
                 
                 byte[] payloadData = new byte[payloadLength];
                 for (int i = 0; i < payloadLength; i++)
-                    payloadData[i] = (byte)(data[index+i] ^ maskBytes[i % 4]);
+                    payloadData[i] = (byte)(_data[index+i] ^ maskBytes[i % 4]);
 
-                readState.Data.AddRange(payloadData);
-                data.RemoveRange(0, index + payloadLength);
+                _readState.Data.AddRange(payloadData);
+
+                var bytesUsed = index + payloadLength;
+                Buffer.BlockCopy(_data, bytesUsed, _data, 0, _dataLen - bytesUsed);
+                _dataLen -= index + payloadLength;
                 
                 if (frameType != FrameType.Continuation)
-                    readState.FrameType = frameType;
+                    _readState.FrameType = frameType;
                 
-                if (isFinal && readState.FrameType.HasValue)
+                if (isFinal && _readState.FrameType.HasValue)
                 {
-                    var stateData = readState.Data.ToArray();
-                    var stateFrameType = readState.FrameType;
-                    readState.Clear();
+                    var stateData = _readState.Data.ToArray();
+                    var stateFrameType = _readState.FrameType;
+                    _readState.Clear();
                     
-                    processFrame(stateFrameType.Value, stateData);
+                    ProcessFrame(stateFrameType.Value, stateData);
                 }
             }
         }
@@ -189,12 +210,12 @@ namespace Fleck.Handlers
             switch (frameType)
             {
             case FrameType.Close:
-                if (data.Length == 1 || data.Length>125)
+                if (data.Length == 1 || data.Length > 125)
                     throw new WebSocketException(WebSocketStatusCodes.ProtocolError);
                     
                 if (data.Length >= 2)
                 {
-                    var closeCode = (ushort)data.Take(2).ToArray().ToLittleEndianInt();
+                    var closeCode = (ushort)new Span<byte>(data, 0, 2).ToLittleEndianInt();
                     if (!WebSocketStatusCodes.ValidCloseCodes.Contains(closeCode) && (closeCode < 3000 || closeCode > 4999))
                         throw new WebSocketException(WebSocketStatusCodes.ProtocolError);
                 }
