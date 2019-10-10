@@ -1,6 +1,5 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
+using System.Buffers;
 using System.IO;
 using System.Threading.Tasks;
 
@@ -8,11 +7,33 @@ namespace Fleck
 {
     public class WebSocketConnection : IWebSocketConnection
     {
+        private const int ReadSize = 8 * 1024;
+
+        public ISocket Socket { get; set; }
+        public IHandler Handler { get; set; }
+        public Action OnOpen { get; set; }
+        public Action OnClose { get; set; }
+        public Action<string> OnMessage { get; set; }
+        public BinaryDataHandler OnBinary { get; set; }
+        public BinaryDataHandler OnPing { get; set; }
+        public BinaryDataHandler OnPong { get; set; }
+        public Action<Exception> OnError { get; set; }
+        public IWebSocketConnectionInfo ConnectionInfo { get; private set; }
+        public bool IsAvailable => !_closing && !_closed && Socket.Connected;
+
+        private readonly Action<IWebSocketConnection> _initialize;
+        private readonly Func<IWebSocketConnection, WebSocketHttpRequest, IHandler> _handlerFactory;
+        private readonly Func<ArraySegment<byte>, WebSocketHttpRequest> _parseRequest;
+        private byte[] _receiveBuffer;
+        private int _receiveOffset;
+        private bool _closing;
+        private bool _closed;
+
         public WebSocketConnection(
             ISocket socket,
             Action<IWebSocketConnection> initialize,
-            Func<byte[], WebSocketHttpRequest> parseRequest,
-            Func<WebSocketHttpRequest, IHandler> handlerFactory)
+            Func<ArraySegment<byte>, WebSocketHttpRequest> parseRequest,
+            Func<IWebSocketConnection, WebSocketHttpRequest, IHandler> handlerFactory)
         {
             Socket = socket;
             OnOpen = () => { };
@@ -26,36 +47,6 @@ namespace Fleck
             _handlerFactory = handlerFactory;
             _parseRequest = parseRequest;
         }
-
-        public ISocket Socket { get; set; }
-
-        private readonly Action<IWebSocketConnection> _initialize;
-        private readonly Func<WebSocketHttpRequest, IHandler> _handlerFactory;
-        readonly Func<byte[], WebSocketHttpRequest> _parseRequest;
-
-        public IHandler Handler { get; set; }
-
-        private bool _closing;
-        private bool _closed;
-        private const int ReadSize = 1024 * 4;
-
-        public Action OnOpen { get; set; }
-
-        public Action OnClose { get; set; }
-
-        public Action<string> OnMessage { get; set; }
-
-        public BinaryDataHandler OnBinary { get; set; }
-
-        public BinaryDataHandler OnPing { get; set; }
-
-        public BinaryDataHandler OnPong { get; set; }
-
-        public Action<Exception> OnError { get; set; }
-
-        public IWebSocketConnectionInfo ConnectionInfo { get; private set; }
-
-        public bool IsAvailable => !_closing && !_closed && Socket.Connected;
 
         public Task Send(string message)
         {
@@ -95,13 +86,6 @@ namespace Fleck
             return SendBytes(buffer);
         }
 
-        public void StartReceiving()
-        {
-            var data = new List<byte>(ReadSize);
-            var buffer = new byte[ReadSize];
-            Read(data, buffer);
-        }
-
         public void Close()
         {
             Close(WebSocketStatusCodes.NormalClosure);
@@ -109,6 +93,12 @@ namespace Fleck
 
         public void Close(ushort code)
         {
+            if (_receiveBuffer != null)
+            {
+                ArrayPool<byte>.Shared.Return(_receiveBuffer);
+                _receiveBuffer = null;
+            }
+
             if (!IsAvailable)
                 return;
 
@@ -127,52 +117,60 @@ namespace Fleck
                 SendBytes(bytes, CloseSocket);
         }
 
-        public void CreateHandler(IEnumerable<byte> data)
+        public bool CreateHandler(ArraySegment<byte> data)
         {
-            var request = _parseRequest(data.ToArray());
+            var request = _parseRequest(data);
             if (request == null)
-                return;
-            Handler = _handlerFactory(request);
+                return false;
+
+            Handler = _handlerFactory(this, request);
             if (Handler == null)
-                return;
+                return false;
+
             ConnectionInfo = WebSocketConnectionInfo.Create(request, Socket.RemoteIpAddress, Socket.RemotePort);
 
             _initialize(this);
 
             var handshake = Handler.CreateHandshake();
             SendBytes(handshake, OnOpen);
+            return true;
         }
 
-        private void Read(List<byte> data, byte[] buffer)
+        public void StartReceiving()
         {
             if (!IsAvailable)
                 return;
 
-            Socket.Receive(buffer, r =>
+            if (_receiveBuffer == null)
+                _receiveBuffer = ArrayPool<byte>.Shared.Rent(ReadSize);
+
+            Receive(_receiveBuffer, 0);
+        }
+
+        private void HandleReadSuccess(int bytesRead)
+        {
+            if (bytesRead <= 0)
             {
-                if (r <= 0)
-                {
-                    FleckLog.Debug("0 bytes read. Closing.");
-                    CloseSocket();
-                    return;
-                }
-                FleckLog.Debug(r + " bytes read");
-                var readBytes = new Span<byte>(buffer, 0, r);
-                if (Handler != null)
-                {
-                    Handler.Receive(readBytes);
-                }
-                else
-                {
-                    for (var i = 0; i < readBytes.Length; i++)
-                        data.Add(readBytes[i]);
+                FleckLog.Debug("0 bytes read. Closing.");
+                CloseSocket();
+                return;
+            }
 
-                    CreateHandler(data);
-                }
+            FleckLog.Debug($"{bytesRead} bytes read");
 
-                Read(data, buffer);
-            },
-            HandleReadError);
+            var readBytes = new Span<byte>(_receiveBuffer, 0, bytesRead);
+
+            if (Handler != null)
+            {
+                Handler.Receive(readBytes);
+                Receive(_receiveBuffer, 0);
+            }
+            else
+            {
+                _receiveOffset += bytesRead;
+                var started = CreateHandler(new ArraySegment<byte>(_receiveBuffer, 0, _receiveOffset));
+                Receive(_receiveBuffer, started ? 0 : _receiveOffset);
+            }
         }
 
         private void HandleReadError(Exception e)
@@ -206,6 +204,31 @@ namespace Fleck
             {
                 FleckLog.Error("Application Error", e);
                 Close(WebSocketStatusCodes.InternalServerError);
+            }
+        }
+
+        private void Receive(byte[] buffer, int offset)
+        {
+            try
+            {
+                Socket.Stream.BeginRead(buffer, offset, buffer.Length - offset, result =>
+                {
+                    var instance = (WebSocketConnection)result.AsyncState;
+
+                    try
+                    {
+                        var bytesRead = instance.Socket.Stream.EndRead(result);
+                        instance.HandleReadSuccess(bytesRead);
+                    }
+                    catch (Exception e)
+                    {
+                        instance.HandleReadError(e);
+                    }
+                }, this);
+            }
+            catch (Exception e)
+            {
+                HandleReadError(e);
             }
         }
 

@@ -15,11 +15,7 @@ namespace Fleck.Handlers
         private static readonly ThreadLocal<StringBuilder> StringBuilder = new ThreadLocal<StringBuilder>(() => new StringBuilder(1024));
 
         private readonly WebSocketHttpRequest _request;
-        private readonly Action<string> _onMessage;
-        private readonly Action _onClose;
-        private readonly BinaryDataHandler _onBinary;
-        private readonly BinaryDataHandler _onPing;
-        private readonly BinaryDataHandler _onPong;
+        private readonly IWebSocketConnection _connection;
         private byte[] _data;
         private int _dataLen;
 
@@ -27,20 +23,10 @@ namespace Fleck.Handlers
         private byte[] _message;
         private int _messageLen;
 
-        public Hybi13Handler(
-            WebSocketHttpRequest request,
-            Action<string> onMessage,
-            Action onClose,
-            BinaryDataHandler onBinary,
-            BinaryDataHandler onPing,
-            BinaryDataHandler onPong)
+        public Hybi13Handler(WebSocketHttpRequest request, IWebSocketConnection connection)
         {
             _request = request;
-            _onMessage = onMessage;
-            _onClose = onClose;
-            _onBinary = onBinary;
-            _onPing = onPing;
-            _onPong = onPong;
+            _connection = connection;
 
             _data = ArrayPool<byte>.Shared.Rent(1 * 1024 * 1024); // 1 MB read buffer
             _dataLen = 0;
@@ -123,7 +109,7 @@ namespace Fleck.Handlers
             return FrameData(codeSpan, FrameType.Close);
         }
 
-        private MemoryBuffer FrameData(Span<byte> payload, FrameType frameType)
+        private static MemoryBuffer FrameData(Span<byte> payload, FrameType frameType)
         {
             var data = ArrayPool<byte>.Shared.Rent(payload.Length + 16);
             var writer = new SpanWriter(data);
@@ -248,19 +234,19 @@ namespace Fleck.Handlers
                             throw new WebSocketException(WebSocketStatusCodes.ProtocolError);
                     }
 
-                    _onClose();
+                    _connection.OnClose?.Invoke();
                     break;
                 case FrameType.Binary:
-                    _onBinary(data);
+                    _connection.OnBinary?.Invoke(data);
                     break;
                 case FrameType.Ping:
-                    _onPing(data);
+                    _connection.OnPing?.Invoke(data);
                     break;
                 case FrameType.Pong:
-                    _onPong(data);
+                    _connection.OnPong?.Invoke(data);
                     break;
                 case FrameType.Text:
-                    _onMessage(ReadUTF8PayloadData(data));
+                    _connection.OnMessage?.Invoke(ReadUTF8PayloadData(data));
                     break;
                 default:
                     FleckLog.Debug("Received unhandled " + frameType);

@@ -1,17 +1,10 @@
-using System;
 using Fleck.Handlers;
 
 namespace Fleck
 {
     public class HandlerFactory
     {
-        public static IHandler BuildHandler(
-            WebSocketHttpRequest request,
-            Action<string> onMessage,
-            Action onClose,
-            BinaryDataHandler onBinary,
-            BinaryDataHandler onPing,
-            BinaryDataHandler onPong)
+        public static IHandler BuildHandler(WebSocketHttpRequest request, IWebSocketConnection connection)
         {
             var version = GetVersion(request);
             
@@ -20,7 +13,7 @@ namespace Fleck
                 case "7":
                 case "8":
                 case "13":
-                    return new Hybi13Handler(request, onMessage, onClose, onBinary, onPing, onPong);
+                    return new Hybi13Handler(request, connection);
             }
             
             throw new WebSocketException(WebSocketStatusCodes.ProtocolError);

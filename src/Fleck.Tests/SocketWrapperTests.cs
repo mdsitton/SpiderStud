@@ -84,14 +84,6 @@ namespace Fleck.Tests
             Assert.IsNull(task);
             Assert.IsNull(ex);
         }
-        [Test]
-        public void ShouldHandleObjectDisposedOnReceive()
-        {
-            Exception ex = null;
-            _wrapper.Dispose();
-            _wrapper.Receive(new byte[1], i => {}, e => {ex = e;}, 0);
-            Assert.IsInstanceOf<ObjectDisposedException>(ex);
-        }
     }
 }
 

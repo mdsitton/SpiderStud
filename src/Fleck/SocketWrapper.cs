@@ -97,26 +97,6 @@ namespace Fleck
 
         public EndPoint LocalEndPoint => _socket.LocalEndPoint;
 
-        public Task<int> Receive(byte[] buffer, Action<int> callback, Action<Exception> error, int offset)
-        {
-            try
-            {
-                Func<AsyncCallback, object, IAsyncResult> begin =
-               (cb, s) => Stream.BeginRead(buffer, offset, buffer.Length, cb, s);
-
-                Task<int> task = Task.Factory.FromAsync<int>(begin, Stream.EndRead, null);
-                task.ContinueWith(t => callback(t.Result), TaskContinuationOptions.NotOnFaulted)
-                    .ContinueWith(t => error(t.Exception), TaskContinuationOptions.OnlyOnFaulted);
-                task.ContinueWith(t => error(t.Exception), TaskContinuationOptions.OnlyOnFaulted);
-                return task;
-            }
-            catch (Exception e)
-            {
-                error(e);
-                return null;
-            }
-        }
-
         public Task<ISocket> Accept(Action<ISocket> callback, Action<Exception> error)
         {
             Func<IAsyncResult, ISocket> end = r => _tokenSource.Token.IsCancellationRequested ? null : new SocketWrapper(_socket.EndAccept(r));

@@ -2,7 +2,6 @@ using System;
 using System.Net;
 using System.Net.Sockets;
 using System.Security.Cryptography.X509Certificates;
-using System.Collections.Generic;
 using System.Security.Authentication;
 using Fleck.Helpers;
 
@@ -44,7 +43,7 @@ namespace Fleck
         public int Port { get; private set; }
         public X509Certificate2 Certificate { get; set; }
         public SslProtocols EnabledSslProtocols { get; set; }
-        public bool RestartAfterListenError {get; set; }
+        public bool RestartAfterListenError { get; set; }
 
         public bool IsSecure => _scheme == "wss" && Certificate != null;
 
@@ -55,19 +54,21 @@ namespace Fleck
 
         private IPAddress ParseIPAddress(Uri uri)
         {
-            string ipStr = uri.Host;
+            var ipStr = uri.Host;
 
-            if (ipStr == "0.0.0.0" ){
+            if (ipStr == "0.0.0.0")
                 return IPAddress.Any;
-            }else if(ipStr == "[0000:0000:0000:0000:0000:0000:0000:0000]")
-            {
+            
+            if (ipStr == "[0000:0000:0000:0000:0000:0000:0000:0000]") 
                 return IPAddress.IPv6Any;
-            } else {
-                try {
-                    return IPAddress.Parse(ipStr);
-                } catch (Exception ex) {
-                    throw new FormatException("Failed to parse the IP address part of the location. Please make sure you specify a valid IP address. Use 0.0.0.0 or [::] to listen on all interfaces.", ex);
-                }
+            
+            try
+            {
+                return IPAddress.Parse(ipStr);
+            }
+            catch (Exception ex)
+            {
+                throw new FormatException("Failed to parse the IP address part of the location. Please make sure you specify a valid IP address. Use 0.0.0.0 or [::] to listen on all interfaces.", ex);
             }
         }
 
@@ -92,9 +93,11 @@ namespace Fleck
 
         private void ListenForClients()
         {
-            ListenerSocket.Accept(OnClientConnect, e => {
+            ListenerSocket.Accept(OnClientConnect, e =>
+            {
                 FleckLog.Error("Listener socket is closed", e);
-                if(RestartAfterListenError){
+                if (RestartAfterListenError)
+                {
                     FleckLog.Info("Listener socket restarting");
                     try
                     {
@@ -125,12 +128,7 @@ namespace Fleck
                 clientSocket,
                 _config,
                 bytes => RequestParser.Parse(bytes, _scheme),
-                r => HandlerFactory.BuildHandler(r,
-                                                 s => connection.OnMessage(s),
-                                                 connection.Close,
-                                                 b => connection.OnBinary(b),
-                                                 b => connection.OnPing(b),
-                                                 b => connection.OnPong(b)));
+                (c, r) => HandlerFactory.BuildHandler(r, c));
 
             if (IsSecure)
             {
