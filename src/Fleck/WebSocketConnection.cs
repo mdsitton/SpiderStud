@@ -19,7 +19,7 @@ namespace Fleck
             OnClose = () => { };
             OnMessage = x => { };
             OnBinary = x => { };
-            OnPing = x => SendPong(x);
+            OnPing = x => { };
             OnPong = x => { };
             OnError = x => { };
             _initialize = initialize;
@@ -45,42 +45,39 @@ namespace Fleck
 
         public Action<string> OnMessage { get; set; }
 
-        public Action<byte[]> OnBinary { get; set; }
+        public BinaryDataHandler OnBinary { get; set; }
 
-        public Action<byte[]> OnPing { get; set; }
+        public BinaryDataHandler OnPing { get; set; }
 
-        public Action<byte[]> OnPong { get; set; }
+        public BinaryDataHandler OnPong { get; set; }
 
         public Action<Exception> OnError { get; set; }
 
         public IWebSocketConnectionInfo ConnectionInfo { get; private set; }
 
-        public bool IsAvailable
-        {
-            get { return !_closing && !_closed && Socket.Connected; }
-        }
+        public bool IsAvailable => !_closing && !_closed && Socket.Connected;
 
         public Task Send(string message)
         {
-            return Send(message, Handler.FrameText);
+            return Send(Handler.FrameText(message));
         }
 
         public Task Send(byte[] message)
         {
-            return Send(message, Handler.FrameBinary);
+            return Send(Handler.FrameBinary(message));
         }
 
         public Task SendPing(byte[] message)
         {
-            return Send(message, Handler.FramePing);
+            return Send(Handler.FramePing(message));
         }
 
         public Task SendPong(byte[] message)
         {
-            return Send(message, Handler.FramePong);
+            return Send(Handler.FramePong(message));
         }
 
-        private Task Send<T>(T message, Func<T, MemoryBuffer> createFrame)
+        private Task Send(MemoryBuffer buffer)
         {
             if (Handler == null)
                 throw new InvalidOperationException("Cannot send before handshake");
@@ -95,8 +92,7 @@ namespace Fleck
                 return taskForException.Task;
             }
 
-            var bytes = createFrame(message);
-            return SendBytes(bytes);
+            return SendBytes(buffer);
         }
 
         public void StartReceiving()
@@ -200,11 +196,6 @@ namespace Fleck
             {
                 FleckLog.Debug("Error while reading", e);
                 Close(((WebSocketException)e).StatusCode);
-            }
-            else if (e is SubProtocolNegotiationFailureException)
-            {
-                FleckLog.Debug(e.Message);
-                Close(WebSocketStatusCodes.ProtocolError);
             }
             else if (e is IOException)
             {

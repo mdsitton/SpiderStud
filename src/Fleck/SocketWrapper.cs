@@ -3,7 +3,6 @@ using System.IO;
 using System.Net;
 using System.Net.Security;
 using System.Net.Sockets;
-using System.Runtime.InteropServices;
 using System.Security.Authentication;
 using System.Security.Cryptography.X509Certificates;
 using System.Threading.Tasks;
@@ -15,11 +14,10 @@ namespace Fleck
     public class SocketWrapper : ISocket
     {
     
-        public const UInt32 KeepAliveInterval = 60000;
-        public const UInt32 RetryInterval = 10000;
+        public const uint KeepAliveInterval = 60000;
+        public const uint RetryInterval = 10000;
     
         private readonly Socket _socket;
-        private Stream _stream;
         private CancellationTokenSource _tokenSource;
         private TaskFactory _taskFactory;
 
@@ -32,14 +30,7 @@ namespace Fleck
             }
         }
 
-        public int RemotePort
-        {
-            get
-            {
-                var endpoint = _socket.RemoteEndPoint as IPEndPoint;
-                return endpoint != null ? endpoint.Port : -1;
-            }
-        }
+        public int RemotePort => _socket.RemoteEndPoint is IPEndPoint endpoint ? endpoint.Port : -1;
 
         public void SetKeepAlive(Socket socket, UInt32 keepAliveInterval, UInt32 retryInterval)
         {
@@ -59,7 +50,7 @@ namespace Fleck
             _taskFactory = new TaskFactory(_tokenSource.Token);
             _socket = socket;
             if (_socket.Connected)
-                _stream = new NetworkStream(_socket);
+                Stream = new NetworkStream(_socket);
 
             // The tcp keepalive default values on most systems
             // are huge (~7200s). Set them to something more reasonable.
@@ -71,8 +62,8 @@ namespace Fleck
 
         public Task Authenticate(X509Certificate2 certificate, SslProtocols enabledSslProtocols, Action callback, Action<Exception> error)
         {
-            var ssl = new SslStream(_stream, false);
-            _stream = new QueuedStream(ssl);
+            var ssl = new SslStream(Stream, false);
+            Stream = new QueuedStream(ssl);
             Func<AsyncCallback, object, IAsyncResult> begin =
                 (cb, s) => ssl.BeginAuthenticateAsServer(certificate, false, enabledSslProtocols, false, cb, s);
 
@@ -94,35 +85,26 @@ namespace Fleck
             _socket.Bind(endPoint);
         }
 
-        public bool Connected
-        {
-            get { return _socket.Connected; }
-        }
+        public bool Connected => _socket.Connected;
 
-        public Stream Stream
-        {
-            get { return _stream; }
-        }
+        public Stream Stream { get; private set; }
 
         public bool NoDelay
         {
-            get { return _socket.NoDelay; }
-            set { _socket.NoDelay = value; }
+            get => _socket.NoDelay;
+            set => _socket.NoDelay = value;
         }
 
-        public EndPoint LocalEndPoint
-        {
-            get { return _socket.LocalEndPoint; }
-        }
+        public EndPoint LocalEndPoint => _socket.LocalEndPoint;
 
         public Task<int> Receive(byte[] buffer, Action<int> callback, Action<Exception> error, int offset)
         {
             try
             {
                 Func<AsyncCallback, object, IAsyncResult> begin =
-               (cb, s) => _stream.BeginRead(buffer, offset, buffer.Length, cb, s);
+               (cb, s) => Stream.BeginRead(buffer, offset, buffer.Length, cb, s);
 
-                Task<int> task = Task.Factory.FromAsync<int>(begin, _stream.EndRead, null);
+                Task<int> task = Task.Factory.FromAsync<int>(begin, Stream.EndRead, null);
                 task.ContinueWith(t => callback(t.Result), TaskContinuationOptions.NotOnFaulted)
                     .ContinueWith(t => error(t.Exception), TaskContinuationOptions.OnlyOnFaulted);
                 task.ContinueWith(t => error(t.Exception), TaskContinuationOptions.OnlyOnFaulted);
@@ -148,20 +130,20 @@ namespace Fleck
         public void Dispose()
         {
             _tokenSource.Cancel();
-            if (_stream != null) _stream.Dispose();
+            if (Stream != null) Stream.Dispose();
             if (_socket != null) _socket.Dispose();
         }
 
         public void Close()
         {
             _tokenSource.Cancel();
-            if (_stream != null) _stream.Close();
+            if (Stream != null) Stream.Close();
             if (_socket != null) _socket.Close();
         }
 
         public int EndSend(IAsyncResult asyncResult)
         {
-            _stream.EndWrite(asyncResult);
+            Stream.EndWrite(asyncResult);
             return 0;
         }
 
@@ -173,9 +155,9 @@ namespace Fleck
             try
             {
                 Func<AsyncCallback, object, IAsyncResult> begin =
-                    (cb, s) => _stream.BeginWrite(buffer.Data, 0, buffer.Length, cb, s);
+                    (cb, s) => Stream.BeginWrite(buffer.Data, 0, buffer.Length, cb, s);
 
-                Task task = Task.Factory.FromAsync(begin, _stream.EndWrite, null);
+                Task task = Task.Factory.FromAsync(begin, Stream.EndWrite, null);
                 task.ContinueWith(t => callback(), TaskContinuationOptions.NotOnFaulted)
                     .ContinueWith(t => error(t.Exception), TaskContinuationOptions.OnlyOnFaulted);
                 task.ContinueWith(t => error(t.Exception), TaskContinuationOptions.OnlyOnFaulted);

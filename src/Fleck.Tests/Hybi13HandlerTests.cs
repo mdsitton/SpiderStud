@@ -12,9 +12,9 @@ namespace Fleck.Tests
         private IHandler _handler;
         private WebSocketHttpRequest _request;
         private Action<string> _onMessage;
-        private Action<byte[]> _onBinary;
-        private Action<byte[]> _onPing;
-        private Action<byte[]> _onPong;
+        private BinaryDataHandler _onBinary;
+        private BinaryDataHandler _onPing;
+        private BinaryDataHandler _onPong;
         private Action _onClose;
 
         [SetUp]
@@ -342,7 +342,7 @@ namespace Fleck.Tests
                 };
 
             byte[] result = null;
-            _onBinary = b => result = b;
+            _onBinary = b => result = b.ToArray();
             _handler.Receive(frame.ToBytes());
 
             Assert.AreEqual(expected, result);
@@ -362,7 +362,7 @@ namespace Fleck.Tests
                 };
 
             byte[] result = null;
-            _onPing = b => result = b;
+            _onPing = b => result = b.ToArray();
             _handler.Receive(frame.ToBytes());
 
             Assert.AreEqual(expected, result);
@@ -382,7 +382,7 @@ namespace Fleck.Tests
                 };
 
             byte[] result = null;
-            _onPong = b => result = b;
+            _onPong = b => result = b.ToArray();
             _handler.Receive(frame.ToBytes());
 
             Assert.AreEqual(expected, result);

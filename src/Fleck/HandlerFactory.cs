@@ -5,7 +5,13 @@ namespace Fleck
 {
     public class HandlerFactory
     {
-        public static IHandler BuildHandler(WebSocketHttpRequest request, Action<string> onMessage, Action onClose, Action<byte[]> onBinary, Action<byte[]> onPing, Action<byte[]> onPong)
+        public static IHandler BuildHandler(
+            WebSocketHttpRequest request,
+            Action<string> onMessage,
+            Action onClose,
+            BinaryDataHandler onBinary,
+            BinaryDataHandler onPing,
+            BinaryDataHandler onPong)
         {
             var version = GetVersion(request);
             

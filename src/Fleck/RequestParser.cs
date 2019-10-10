@@ -9,10 +9,8 @@ namespace Fleck
                                @"((?<field_name>[^:\r\n]+):(?([^\r\n])\s)*(?<field_value>[^\r\n]*)\r\n)+" + //headers
                                @"\r\n" + //newline
                                @"(?<body>.+)?";
-        const string FlashSocketPolicyRequestPattern = @"^[<]policy-file-request\s*[/][>]";
 
         private static readonly Regex _regex = new Regex(pattern, RegexOptions.IgnoreCase | RegexOptions.Compiled);
-        private static readonly Regex _FlashSocketPolicyRequestRegex = new Regex(FlashSocketPolicyRequestPattern, RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
         public static WebSocketHttpRequest Parse(byte[] bytes)
         {
@@ -26,23 +24,7 @@ namespace Fleck
             Match match = _regex.Match(body);
 
             if (!match.Success)
-            {
-                // No websocket request header found, check for a flash socket policy request
-                match = _FlashSocketPolicyRequestRegex.Match(body);
-                if (match.Success)
-                {
-                    // It's a flash socket policy request, so return
-                    return new WebSocketHttpRequest
-                    {
-                        Body = body,
-                        Bytes = bytes
-                    };
-                }
-                else
-                {
-                    return null;
-                }
-            }
+                return null;
 
             var request = new WebSocketHttpRequest
             {

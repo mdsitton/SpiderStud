@@ -8,21 +8,26 @@ namespace Fleck
         public byte[] Data { get; }
         public int Length { get; }
 
-        public MemoryBuffer(byte[] data, int length)
+        private readonly bool _fromPool;
+
+        public MemoryBuffer(byte[] data, int length, bool fromPool = true)
         {
             Data = data;
             Length = length;
+            _fromPool = fromPool;
         }
 
         public MemoryBuffer(byte[] data)
         {
             Data = data;
             Length = data?.Length ?? 0;
+            _fromPool = false;
         }
 
         public void Dispose()
         {
-            ArrayPool<byte>.Shared.Return(Data);
+            if (_fromPool)
+                ArrayPool<byte>.Shared.Return(Data);
         }
     }
 }
