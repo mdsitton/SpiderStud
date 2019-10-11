@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Buffers;
 using System.IO;
-using System.Threading.Tasks;
 
 namespace Fleck
 {
@@ -48,42 +47,38 @@ namespace Fleck
             _parseRequest = parseRequest;
         }
 
-        public Task Send(string message)
+        public void Send(string message)
         {
-            return Send(Handler.FrameText(message));
+            Send(Handler.FrameText(message));
         }
 
-        public Task Send(ArraySegment<byte> message)
+        public void Send(ArraySegment<byte> message)
         {
-            return Send(Handler.FrameBinary(message));
+            Send(Handler.FrameBinary(message));
         }
 
-        public Task SendPing(ArraySegment<byte> message)
+        public void SendPing(ArraySegment<byte> message)
         {
-            return Send(Handler.FramePing(message));
+            Send(Handler.FramePing(message));
         }
 
-        public Task SendPong(ArraySegment<byte> message)
+        public void SendPong(ArraySegment<byte> message)
         {
-            return Send(Handler.FramePong(message));
+            Send(Handler.FramePong(message));
         }
 
-        private Task Send(MemoryBuffer buffer)
+        private void Send(MemoryBuffer buffer)
         {
             if (Handler == null)
                 throw new InvalidOperationException("Cannot send before handshake");
 
             if (!IsAvailable)
             {
-                const string errorMessage = "Data sent while closing or after close. Ignoring.";
-                FleckLog.Warn(errorMessage);
-
-                var taskForException = new TaskCompletionSource<object>();
-                taskForException.SetException(new ConnectionNotAvailableException(errorMessage));
-                return taskForException.Task;
+                FleckLog.Warn("Data sent while closing or after close. Ignoring.");
+                return;
             }
 
-            return SendBytes(buffer);
+            SendBytes(buffer);
         }
 
         public void Close()
@@ -93,12 +88,6 @@ namespace Fleck
 
         public void Close(ushort code)
         {
-            if (_receiveBuffer != null)
-            {
-                ArrayPool<byte>.Shared.Return(_receiveBuffer);
-                _receiveBuffer = null;
-            }
-
             if (!IsAvailable)
                 return;
 
@@ -232,23 +221,46 @@ namespace Fleck
             }
         }
 
-        private Task SendBytes(MemoryBuffer bytes, Action callback = null)
+        private void HandleWriteError(Exception e)
         {
-            return Socket.Send(bytes, () =>
-            {
-                FleckLog.Debug("Sent " + bytes.Length + " bytes");
-                bytes.Dispose();
-                callback?.Invoke();
-            }, e =>
-            {
-                if (e is IOException)
-                    FleckLog.Debug("Failed to send. Disconnecting.", e);
-                else
-                    FleckLog.Info("Failed to send. Disconnecting.", e);
+            if (e is IOException)
+                FleckLog.Debug("Failed to send. Disconnecting.", e);
+            else
+                FleckLog.Info("Failed to send. Disconnecting.", e);
 
-                bytes.Dispose();
-                CloseSocket();
-            });
+            CloseSocket();
+        }
+
+        private void SendBytes(MemoryBuffer bytes, Action callback = null)
+        {
+            try
+            {
+                // TODO: this allocates for the delegate - could probably avoid that with QueuedStream
+                Socket.Stream.BeginWrite(bytes.Data, 0, bytes.Length, result =>
+                {
+                    var instance = (WebSocketConnection)result.AsyncState;
+
+                    try
+                    {
+                        instance.Socket.Stream.EndWrite(result);
+                        FleckLog.Debug($"Sent {bytes.Length} bytes");
+
+                        callback?.Invoke();
+                    }
+                    catch (Exception e)
+                    {
+                        instance.HandleWriteError(e);
+                    }
+                    finally
+                    {
+                        bytes.Dispose();
+                    }
+                }, this);
+            }
+            catch (Exception e)
+            {
+                HandleWriteError(e);
+            }
         }
 
         private void CloseSocket()
@@ -259,6 +271,12 @@ namespace Fleck
             Socket.Close();
             Socket.Dispose();
             _closing = false;
+
+            if (_receiveBuffer != null)
+            {
+                ArrayPool<byte>.Shared.Return(_receiveBuffer);
+                _receiveBuffer = null;
+            }
         }
     }
 }

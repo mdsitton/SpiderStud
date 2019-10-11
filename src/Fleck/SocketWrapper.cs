@@ -13,9 +13,10 @@ namespace Fleck
 {
     public class SocketWrapper : ISocket
     {
-    
         public const uint KeepAliveInterval = 60000;
         public const uint RetryInterval = 10000;
+
+        private static readonly byte[] keepAliveValues;
     
         private readonly Socket _socket;
         private CancellationTokenSource _tokenSource;
@@ -32,16 +33,17 @@ namespace Fleck
 
         public int RemotePort => _socket.RemoteEndPoint is IPEndPoint endpoint ? endpoint.Port : -1;
 
-        public void SetKeepAlive(Socket socket, UInt32 keepAliveInterval, UInt32 retryInterval)
+        static SocketWrapper()
         {
-            int size = sizeof(UInt32);
-            UInt32 on = 1;
+            const int size = sizeof(uint);
+            uint on = 1;
 
             byte[] inArray = new byte[size * 3];
             Array.Copy(BitConverter.GetBytes(on), 0, inArray, 0, size);
-            Array.Copy(BitConverter.GetBytes(keepAliveInterval), 0, inArray, size, size);
-            Array.Copy(BitConverter.GetBytes(retryInterval), 0, inArray, size * 2, size);
-            socket.IOControl(IOControlCode.KeepAliveValues, inArray, null);
+            Array.Copy(BitConverter.GetBytes(KeepAliveInterval), 0, inArray, size, size);
+            Array.Copy(BitConverter.GetBytes(RetryInterval), 0, inArray, size * 2, size);
+
+            keepAliveValues = inArray;
         }
 
         public SocketWrapper(Socket socket)
@@ -55,9 +57,7 @@ namespace Fleck
             // The tcp keepalive default values on most systems
             // are huge (~7200s). Set them to something more reasonable.
             if (FleckRuntime.IsRunningOnWindows())
-            {
-                SetKeepAlive(socket, KeepAliveInterval, RetryInterval);
-            }
+                socket.IOControl(IOControlCode.KeepAliveValues, keepAliveValues, null);
         }
 
         public Task Authenticate(X509Certificate2 certificate, SslProtocols enabledSslProtocols, Action callback, Action<Exception> error)
@@ -119,36 +119,6 @@ namespace Fleck
             _tokenSource.Cancel();
             if (Stream != null) Stream.Close();
             if (_socket != null) _socket.Close();
-        }
-
-        public int EndSend(IAsyncResult asyncResult)
-        {
-            Stream.EndWrite(asyncResult);
-            return 0;
-        }
-
-        public Task Send(MemoryBuffer buffer, Action callback, Action<Exception> error)
-        {
-            if (_tokenSource.IsCancellationRequested)
-                return null;
-
-            try
-            {
-                Func<AsyncCallback, object, IAsyncResult> begin =
-                    (cb, s) => Stream.BeginWrite(buffer.Data, 0, buffer.Length, cb, s);
-
-                Task task = Task.Factory.FromAsync(begin, Stream.EndWrite, null);
-                task.ContinueWith(t => callback(), TaskContinuationOptions.NotOnFaulted)
-                    .ContinueWith(t => error(t.Exception), TaskContinuationOptions.OnlyOnFaulted);
-                task.ContinueWith(t => error(t.Exception), TaskContinuationOptions.OnlyOnFaulted);
-
-                return task;
-            }
-            catch (Exception e)
-            {
-                error(e);
-                return null;
-            }
         }
     }
 }

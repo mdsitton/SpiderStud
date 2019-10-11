@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Threading.Tasks;
 
 namespace Fleck
 {
@@ -14,10 +13,10 @@ namespace Fleck
         BinaryDataHandler OnPing { get; set; }
         BinaryDataHandler OnPong { get; set; }
         Action<Exception> OnError { get; set; }
-        Task Send(string message);
-        Task Send(ArraySegment<byte> message);
-        Task SendPing(ArraySegment<byte> message);
-        Task SendPong(ArraySegment<byte> message);
+        void Send(string message);
+        void Send(ArraySegment<byte> message);
+        void SendPing(ArraySegment<byte> message);
+        void SendPong(ArraySegment<byte> message);
         void Close();
         IWebSocketConnectionInfo ConnectionInfo { get; }
         bool IsAvailable { get; }

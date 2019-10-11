@@ -72,18 +72,6 @@ namespace Fleck.Tests
             _listener.Dispose();
             _wrapper.Dispose();
         }
-
-        [Test]
-        public void ShouldNotWriteToClosedSocketIfCancelled()
-        {
-            Exception ex = null;
-            _wrapper.Dispose();
-            
-            var task = _wrapper.Send(new MemoryBuffer(new byte[1]), () => {}, e => {ex = e;});
-            
-            Assert.IsNull(task);
-            Assert.IsNull(ex);
-        }
     }
 }
 

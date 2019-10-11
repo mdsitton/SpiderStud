@@ -63,7 +63,7 @@ namespace Fleck.Tests
             else if (PayloadLength > 125)
             {
                 payloadLengthBytes.Add(126);
-                var lengthBytes = BitConverter.GetBytes((UInt16)PayloadLength);
+                var lengthBytes = BitConverter.GetBytes((ushort)PayloadLength);
                 if (BitConverter.IsLittleEndian)
                     Array.Reverse(lengthBytes);
                 payloadLengthBytes.AddRange(lengthBytes);

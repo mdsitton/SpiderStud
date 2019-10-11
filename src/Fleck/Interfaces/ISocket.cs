@@ -17,7 +17,6 @@ namespace Fleck
         EndPoint LocalEndPoint { get; }
 
         Task<ISocket> Accept(Action<ISocket> callback, Action<Exception> error);
-        Task Send(MemoryBuffer buffer, Action callback, Action<Exception> error);
         Task Authenticate(X509Certificate2 certificate, SslProtocols enabledSslProtocols, Action callback, Action<Exception> error);
 
         void Dispose();
