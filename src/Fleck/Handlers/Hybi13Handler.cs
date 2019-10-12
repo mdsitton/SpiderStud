@@ -84,20 +84,22 @@ namespace Fleck.Handlers
 
         public MemoryBuffer FrameText(string text)
         {
-            return FrameData(UTF8.GetBytes(text), FrameType.Text);
+            var bytes = UTF8.GetBytes(text);
+            var buffer = new MemoryBuffer(bytes, bytes.Length, false);
+            return FrameData(buffer, FrameType.Text);
         }
 
-        public MemoryBuffer FrameBinary(ArraySegment<byte> bytes)
+        public MemoryBuffer FrameBinary(MemoryBuffer bytes)
         {
             return FrameData(bytes, FrameType.Binary);
         }
 
-        public MemoryBuffer FramePing(ArraySegment<byte> bytes)
+        public MemoryBuffer FramePing(MemoryBuffer bytes)
         {
             return FrameData(bytes, FrameType.Ping);
         }
 
-        public MemoryBuffer FramePong(ArraySegment<byte> bytes)
+        public MemoryBuffer FramePong(MemoryBuffer bytes)
         {
             return FrameData(bytes, FrameType.Pong);
         }
@@ -107,6 +109,13 @@ namespace Fleck.Handlers
             var codeSpan = new Span<byte>(&code, sizeof(ushort));
             codeSpan.Reverse();
             return FrameData(codeSpan, FrameType.Close);
+        }
+
+        private static MemoryBuffer FrameData(MemoryBuffer payload, FrameType frameType)
+        {
+            var framed = FrameData((Span<byte>)payload, frameType);
+            payload.Dispose();
+            return framed;
         }
 
         private static MemoryBuffer FrameData(Span<byte> payload, FrameType frameType)
@@ -213,23 +222,24 @@ namespace Fleck.Handlers
                 if (isFinal && _frameType.HasValue)
                 {
                     FleckLog.Debug($"Frame finished: {_frameType.Value}, {_messageLen} bytes");
+
                     ProcessFrame(_frameType.Value, new ArraySegment<byte>(_message, 0, _messageLen));
                     Clear();
                 }
             }
         }
 
-        private void ProcessFrame(FrameType frameType, ArraySegment<byte> data)
+        private void ProcessFrame(FrameType frameType, ArraySegment<byte> buffer)
         {
             switch (frameType)
             {
                 case FrameType.Close:
-                    if (data.Count == 1 || data.Count > 125)
+                    if (buffer.Count == 1 || buffer.Count > 125)
                         throw new WebSocketException(WebSocketStatusCodes.ProtocolError);
 
-                    if (data.Count >= 2)
+                    if (buffer.Count >= 2)
                     {
-                        var closeCode = (ushort)new Span<byte>(data.Array, 0, 2).ToLittleEndianInt();
+                        var closeCode = (ushort)new Span<byte>(buffer.Array, 0, 2).ToLittleEndianInt();
                         if (!WebSocketStatusCodes.ValidCloseCodes.Contains(closeCode) && (closeCode < 3000 || closeCode > 4999))
                             throw new WebSocketException(WebSocketStatusCodes.ProtocolError);
                     }
@@ -237,16 +247,16 @@ namespace Fleck.Handlers
                     _connection.OnClose?.Invoke();
                     break;
                 case FrameType.Binary:
-                    _connection.OnBinary?.Invoke(data);
+                    _connection.OnBinary?.Invoke(buffer);
                     break;
                 case FrameType.Ping:
-                    _connection.OnPing?.Invoke(data);
+                    _connection.OnPing?.Invoke(buffer);
                     break;
                 case FrameType.Pong:
-                    _connection.OnPong?.Invoke(data);
+                    _connection.OnPong?.Invoke(buffer);
                     break;
                 case FrameType.Text:
-                    _connection.OnMessage?.Invoke(ReadUTF8PayloadData(data));
+                    _connection.OnMessage?.Invoke(ReadUTF8PayloadData(buffer));
                     break;
                 default:
                     FleckLog.Debug("Received unhandled " + frameType);

@@ -49,25 +49,25 @@ namespace Fleck
 
         public void Send(string message)
         {
-            Send(Handler.FrameText(message));
+            SendImpl(Handler.FrameText(message));
         }
 
-        public void Send(ArraySegment<byte> message)
+        public void Send(MemoryBuffer message)
         {
-            Send(Handler.FrameBinary(message));
+            SendImpl(Handler.FrameBinary(message));
         }
 
-        public void SendPing(ArraySegment<byte> message)
+        public void SendPing(MemoryBuffer message)
         {
-            Send(Handler.FramePing(message));
+            SendImpl(Handler.FramePing(message));
         }
 
-        public void SendPong(ArraySegment<byte> message)
+        public void SendPong(MemoryBuffer message)
         {
-            Send(Handler.FramePong(message));
+            SendImpl(Handler.FramePong(message));
         }
 
-        private void Send(MemoryBuffer buffer)
+        private void SendImpl(MemoryBuffer buffer)
         {
             if (Handler == null)
                 throw new InvalidOperationException("Cannot send before handshake");
