@@ -26,6 +26,13 @@ namespace Fleck.Samples.ConsoleApp
                         };
                     socket.OnMessage = message =>
                         {
+                            if (message == "close")
+                            {
+                                Console.WriteLine("Closing socket!");
+                                socket.Close();
+                                return;
+                            }
+
                             Console.WriteLine(message);
                             allSockets.ToList().ForEach(s => s.Send("Echo: " + message));
                         };

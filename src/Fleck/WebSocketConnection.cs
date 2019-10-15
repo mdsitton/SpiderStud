@@ -88,12 +88,12 @@ namespace Fleck
 
         public void Close(ushort code)
         {
-            if (!IsAvailable)
+            if (_closing || _closed)
                 return;
 
             _closing = true;
 
-            if (Handler == null)
+            if (Handler == null || !IsAvailable)
             {
                 CloseSocket();
                 return;
@@ -173,7 +173,7 @@ namespace Fleck
 
             if (e is ObjectDisposedException)
             {
-                FleckLog.Debug("Swallowing ObjectDisposedException", e);
+                FleckLog.Warn("Swallowing ObjectDisposedException", e);
                 return;
             }
 
