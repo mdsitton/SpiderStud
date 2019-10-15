@@ -93,7 +93,7 @@ namespace Fleck
 
             _closing = true;
 
-            if (Handler == null || !IsAvailable)
+            if (Handler == null || !Socket.Connected)
             {
                 CloseSocket();
                 return;
@@ -103,7 +103,7 @@ namespace Fleck
             if (bytes.Length == 0)
                 CloseSocket();
             else
-                SendBytes(bytes, CloseSocket);
+                SendBytes(bytes, (i, s) => i.CloseSocket());
         }
 
         public bool CreateHandler(ArraySegment<byte> data)
@@ -121,7 +121,12 @@ namespace Fleck
             _initialize(this);
 
             var handshake = Handler.CreateHandshake();
-            SendBytes(handshake, OnOpen);
+            SendBytes(handshake, (instance, success) =>
+            {
+                if (success)
+                    instance.OnOpen();
+            });
+
             return true;
         }
 
@@ -228,10 +233,11 @@ namespace Fleck
             else
                 FleckLog.Info("Failed to send. Disconnecting.", e);
 
+            OnError(e);
             CloseSocket();
         }
 
-        private void SendBytes(MemoryBuffer bytes, Action callback = null)
+        private void SendBytes(MemoryBuffer bytes, Action<WebSocketConnection, bool> callback = null)
         {
             try
             {
@@ -239,13 +245,14 @@ namespace Fleck
                 Socket.Stream.BeginWrite(bytes.Data, 0, bytes.Length, result =>
                 {
                     var instance = (WebSocketConnection)result.AsyncState;
+                    var success = false;
 
                     try
                     {
                         instance.Socket.Stream.EndWrite(result);
                         FleckLog.Debug($"Sent {bytes.Length} bytes");
 
-                        callback?.Invoke();
+                        success = true;
                     }
                     catch (Exception e)
                     {
@@ -254,6 +261,15 @@ namespace Fleck
                     finally
                     {
                         bytes.Dispose();
+                    }
+
+                    try
+                    {
+                        callback?.Invoke(instance, success);
+                    }
+                    catch (Exception e)
+                    {
+                        instance.OnError(e);
                     }
                 }, this);
             }
