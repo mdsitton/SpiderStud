@@ -17,31 +17,35 @@ namespace Fleck
         
         public static Action<LogLevel, string, Exception> LogAction = (level, message, ex) =>
         {
-            if (level >= Level)
-                Console.WriteLine("{0} [{1}] {2} {3}", DateTime.Now, level, message, ex);
+#if DEBUG
+            Console.WriteLine("{0} [{1}] {2} {3}", DateTime.Now, level, message, ex);
+#endif
         };
         
         public static void Warn(string message, Exception ex = null)
         {
-            LogAction(LogLevel.Warn, message, ex);
+            if (Level >= LogLevel.Warn)
+                LogAction?.Invoke(LogLevel.Warn, message, ex);
         }
         
         public static void Error(string message, Exception ex = null)
         {
-            LogAction(LogLevel.Error, message, ex);
+            if (Level >= LogLevel.Error)
+                LogAction?.Invoke(LogLevel.Error, message, ex);
         }
 
         [Conditional("DEBUG")]
         public static void Debug(string message, Exception ex = null)
         {
-            LogAction(LogLevel.Debug, message, ex);
+            if (Level >= LogLevel.Debug)
+                LogAction?.Invoke(LogLevel.Debug, message, ex);
         }
         
         [Conditional("DEBUG")]
         public static void Info(string message, Exception ex = null)
         {
-            LogAction(LogLevel.Info, message, ex);
+            if (Level >= LogLevel.Info)
+                LogAction?.Invoke(LogLevel.Info, message, ex);
         }
-
     }
 }
