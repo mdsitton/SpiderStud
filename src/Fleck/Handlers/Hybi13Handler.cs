@@ -86,7 +86,12 @@ namespace Fleck.Handlers
         {
             var bytes = UTF8.GetBytes(text);
             var buffer = new MemoryBuffer(bytes, bytes.Length, false);
-            return FrameData(buffer, FrameType.Text);
+            return FrameText(buffer);
+        }
+
+        public MemoryBuffer FrameText(MemoryBuffer utf8StringBytes)
+        {
+            return FrameData(utf8StringBytes, FrameType.Text);
         }
 
         public MemoryBuffer FrameBinary(MemoryBuffer bytes)

@@ -7,6 +7,7 @@ namespace Fleck
         void Receive(Span<byte> newData);
         MemoryBuffer CreateHandshake();
         MemoryBuffer FrameText(string text);
+        MemoryBuffer FrameText(MemoryBuffer utf8StringBytes);
         MemoryBuffer FrameBinary(MemoryBuffer bytes);
         MemoryBuffer FramePing(MemoryBuffer bytes);
         MemoryBuffer FramePong(MemoryBuffer bytes);

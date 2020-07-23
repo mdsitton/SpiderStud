@@ -52,6 +52,11 @@ namespace Fleck
             SendImpl(Handler.FrameText(message));
         }
 
+        public void SendText(MemoryBuffer utf8StringBytes)
+        {
+            SendImpl(Handler.FrameText(utf8StringBytes));
+        }
+
         public void Send(MemoryBuffer message)
         {
             SendImpl(Handler.FrameBinary(message));
