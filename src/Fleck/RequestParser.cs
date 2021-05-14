@@ -6,12 +6,10 @@ namespace Fleck
 {
     public class RequestParser
     {
-        const string pattern = @"^(?<method>[^\s]+)\s(?<path>[^\s]+)\sHTTP\/1\.1\r\n" + // request line
-                               @"((?<field_name>[^:\r\n]+):(?([^\r\n])\s)*(?<field_value>[^\r\n]*)\r\n)+" + //headers
-                               @"\r\n" + //newline
-                               @"(?<body>.+)?";
+        private const string pattern =
+            @"^(?<method>[^\s]+)\s(?<path>[^\s]+)\sHTTP\/1\.1\r\n((?<field_name>[^:\r\n]+):[^\S\r\n]*(?<field_value>[^\r\n]*)\r\n)+";
 
-        private static readonly Regex _regex = new Regex(pattern, RegexOptions.IgnoreCase | RegexOptions.Compiled);
+        private static readonly Regex _regex = new Regex(pattern, RegexOptions.IgnoreCase | RegexOptions.Multiline | RegexOptions.Compiled);
 
         public static WebSocketHttpRequest Parse(ArraySegment<byte> bytes)
         {
@@ -34,7 +32,6 @@ namespace Fleck
             {
                 Method = match.Groups["method"].Value,
                 Path = match.Groups["path"].Value,
-                Body = match.Groups["body"].Value,
                 Scheme = scheme
             };
 
