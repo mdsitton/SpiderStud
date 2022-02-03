@@ -9,11 +9,11 @@
     <PackageProjectUrl>https://github.com/statianzo/Fleck</PackageProjectUrl>
     <RepositoryUrl>https://github.com/statianzo/Fleck</RepositoryUrl>
     <PackageTags>websockets server html5</PackageTags>
-    <TargetFrameworks>netstandard2.0</TargetFrameworks>
+    <TargetFrameworks>netstandard2.1</TargetFrameworks>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="System.Buffers" Version="4.5.1" />
-    <PackageReference Include="System.Memory" Version="4.5.4" />
+    <PackageReference Include="zstring" Version="2.4.4" />
+    <PackageReference Include="System.Runtime.CompilerServices.Unsafe" Version="4.7.0" />
   </ItemGroup>
 </Project>
