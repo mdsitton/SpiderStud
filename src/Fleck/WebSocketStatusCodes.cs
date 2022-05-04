@@ -15,9 +15,13 @@ namespace Fleck
         public const ushort MessageTooBig = 1009;
         public const ushort MandatoryExt = 1010;
         public const ushort InternalServerError = 1011;
+        public const ushort ServiceRestart = 1012;
+        public const ushort TryAgain = 1013;
+        public const ushort UpstreamServerError = 1014;
         public const ushort TLSHandshake = 1015;
 
-        public const ushort ApplicationError = 3000;
+        public const ushort ApplicationUnauthorized = 3000;
+        public const ushort ApplicationError = 4000;
 
         public static ushort[] ValidCloseCodes =
         {
