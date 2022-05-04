@@ -4,9 +4,9 @@ namespace Fleck
 {
     public enum FrameType : byte
     {
-        Continuation,
-        Text,
-        Binary,
+        Continuation = 0,
+        Text = 1,
+        Binary = 2,
         Close = 8,
         Ping = 9,
         Pong = 10,
@@ -22,6 +22,12 @@ namespace Fleck
                    type == FrameType.Close ||
                    type == FrameType.Ping ||
                    type == FrameType.Pong;
+        }
+
+        public static bool IsControlFrame(this FrameType type)
+        {
+            // Control frames have 4th bit set within the opcode id
+            return ((byte)type & 0x8) == 0x8;
         }
     }
 }
