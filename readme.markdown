@@ -27,12 +27,7 @@ server.Start(socket =>
 Supported WebSocket Versions
 ---
 
-Fleck supports several WebSocket versions of modern web browsers
-
-- Hixie-Draft-76/Hybi-00 (Safari 5, Chrome < 14, Firefox 4 (when enabled))
-- Hybi-07 (Firefox 6)
-- Hybi-10 (Chrome 14-16, Firefox 7)
-- Hybi-13 (Chrome 17+, Firefox 11+, Safari 6+, Edge 13+(?))
+This fork of Fleck supports only rfc6455 Hybi-13 WebSockets for modern web browsers, and does not support any older draft specifications.
 
 Secure WebSockets (wss://)
 ---
