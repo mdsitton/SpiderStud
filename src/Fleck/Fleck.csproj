@@ -11,9 +11,14 @@
     <PackageTags>websockets server html5</PackageTags>
     <TargetFrameworks>netstandard2.1</TargetFrameworks>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <LangVersion>9.0</LangVersion>
+    <Nullable>enable</Nullable>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="zstring" Version="2.4.4" />
     <PackageReference Include="System.Runtime.CompilerServices.Unsafe" Version="4.7.0" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\BinaryEx\BinaryEx.csproj" />
   </ItemGroup>
 </Project>
