@@ -11,18 +11,14 @@ namespace Fleck
 
         private static readonly Regex _regex = new Regex(pattern, RegexOptions.IgnoreCase | RegexOptions.Multiline | RegexOptions.Compiled);
 
-        public static WebSocketHttpRequest Parse(ArraySegment<byte> bytes)
-        {
-            return Parse(bytes, "ws");
-        }
 
-        public static WebSocketHttpRequest Parse(ArraySegment<byte> bytes, string scheme)
+        public static WebSocketHttpRequest? Parse(ReadOnlySpan<byte> bytes)
         {
-            if (bytes.Count > 4096)
+            if (bytes.Length > 4096)
                 return null;
 
             // Check for websocket request header
-            var body = Encoding.UTF8.GetString(bytes.Array, bytes.Offset, bytes.Count);
+            var body = Encoding.UTF8.GetString(bytes);
             Match match = _regex.Match(body);
 
             if (!match.Success)
@@ -32,7 +28,6 @@ namespace Fleck
             {
                 Method = match.Groups["method"].Value,
                 Path = match.Groups["path"].Value,
-                Scheme = scheme
             };
 
             var fields = match.Groups["field_name"].Captures;

@@ -9,8 +9,6 @@ namespace Fleck
 
         public string Path { get; set; }
 
-        public string Scheme { get; set; }
-
         public string this[string name]
         {
             get
