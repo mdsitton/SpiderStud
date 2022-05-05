@@ -159,22 +159,20 @@ namespace Fleck.Handlers
                 {
                     if (_dataLen < index + 8)
                         return; //Not complete
-                    payloadLength = new Span<byte>(_data, index, 8).ToLittleEndianInt();
-                    index += 8;
+                    payloadLength = (int)_data.ReadUInt64BE(ref index);
                 }
                 else if (length == 126)
                 {
                     if (_dataLen < index + 2)
                         return; //Not complete
-                    payloadLength = new Span<byte>(_data, index, 2).ToLittleEndianInt();
-                    index += 2;
+                    payloadLength = _data.ReadUInt16BE(ref index);
                 }
                 else
                 {
                     payloadLength = length;
                 }
 
-                FleckLog.Debug($"Expecting {payloadLength} byte payload");
+                // FleckLog.Debug($"Expecting {payloadLength} byte payload");
 
                 if (_dataLen < index + 4)
                     return; //Not complete
@@ -207,7 +205,7 @@ namespace Fleck.Handlers
 
                 if (isFinal && _frameType.HasValue)
                 {
-                    FleckLog.Debug($"Frame finished: {_frameType.Value}, {_messageLen} bytes");
+                    // FleckLog.Debug($"Frame finished: {_frameType.Value}, {_messageLen} bytes");
 
                     ProcessFrame(_frameType.Value, new ArraySegment<byte>(_message, 0, _messageLen));
                     Clear();
@@ -225,7 +223,7 @@ namespace Fleck.Handlers
 
                     if (buffer.Count >= 2)
                     {
-                        var closeCode = (ushort)new Span<byte>(buffer.Array, 0, 2).ToLittleEndianInt();
+                        var closeCode = buffer.Array.ReadUInt16BE(0);
                         if (!WebSocketStatusCodes.ValidCloseCodes.Contains(closeCode) && (closeCode < 3000 || closeCode > 4999))
                             throw new WebSocketException(WebSocketStatusCodes.ProtocolError);
                     }
@@ -242,7 +240,7 @@ namespace Fleck.Handlers
                     _connection.OnPong?.Invoke(buffer);
                     break;
                 case FrameType.Text:
-                    _connection.OnMessage?.Invoke(ReadUTF8PayloadData(buffer));
+                    _connection.OnMessage?.Invoke(buffer);
                     break;
                 default:
                     FleckLog.Debug("Received unhandled " + frameType);
