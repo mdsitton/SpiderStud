@@ -83,74 +83,54 @@ namespace Fleck.Handlers
             return zBuilder.AsSpan();
         }
 
-        public MemoryBuffer FrameText(string text)
+        /// <summary>
+        /// Calculate max frame size based on input payload
+        /// </summary>
+        /// <param name="payload"></param>
+        /// <returns>max frame size</returns>
+        public static int GetMaxFrameSize(ReadOnlySpan<byte> payload) => payload.Length + 14;
+
+        public static int WriteFrame(Span<byte> dataOut, ReadOnlySpan<byte> payload, FrameType frameType, bool endOfMessage = true, bool maskedFrame = false)
         {
-            var bytes = UTF8.GetBytes(text);
-            var buffer = new MemoryBuffer(bytes, bytes.Length, false);
-            return FrameText(buffer);
-        }
+            int pos = 0;
 
-        public MemoryBuffer FrameText(MemoryBuffer utf8StringBytes)
-        {
-            return FrameData(utf8StringBytes, FrameType.Text);
-        }
+            byte frameOpcode = (byte)frameType;
+            byte frameFinal = (byte)(endOfMessage ? 0x80 : 0x00); // Fragmented packets 
 
-        public MemoryBuffer FrameBinary(MemoryBuffer bytes)
-        {
-            return FrameData(bytes, FrameType.Binary);
-        }
+            byte maskedFrameData = (byte)(maskedFrame ? 0x00 : 0x80); // this is a masked frame 
 
-        public MemoryBuffer FramePing(MemoryBuffer bytes)
-        {
-            return FrameData(bytes, FrameType.Ping);
-        }
+            byte byte1 = (byte)(frameFinal | frameOpcode);
 
-        public MemoryBuffer FramePong(MemoryBuffer bytes)
-        {
-            return FrameData(bytes, FrameType.Pong);
-        }
+            dataOut.WriteByte(ref pos, byte1);
 
-        public unsafe MemoryBuffer FrameClose(ushort code)
-        {
-            var codeSpan = new Span<byte>(&code, sizeof(ushort));
-            codeSpan.Reverse();
-            return FrameData(codeSpan, FrameType.Close);
-        }
+            byte byte2 = maskedFrameData;
 
-        private static MemoryBuffer FrameData(MemoryBuffer payload, FrameType frameType)
-        {
-            var framed = FrameData((Span<byte>)payload, frameType);
-            payload.Dispose();
-            return framed;
-        }
-
-        private static MemoryBuffer FrameData(Span<byte> payload, FrameType frameType)
-        {
-            var data = ArrayPool<byte>.Shared.Rent(payload.Length + 16);
-            var writer = new SpanWriter(data);
-
-            byte op = (byte)((byte)frameType + 128);
-            writer.Write(op);
-
+            // writer.
             if (payload.Length > ushort.MaxValue)
             {
-                writer.Write<byte>(127);
-                writer.Write((ulong)payload.Length);
+                byte2 |= 127;
+                dataOut.WriteByte(ref pos, byte2);
+                dataOut.WriteUInt64BE(ref pos, (ulong)payload.Length);
             }
             else if (payload.Length > 125)
             {
-                writer.Write<byte>(126);
-                writer.Write((ushort)payload.Length);
+                byte2 |= 126;
+                dataOut.WriteByte(ref pos, byte2);
+                dataOut.WriteUInt16BE(ref pos, (ushort)payload.Length);
             }
             else
             {
-                writer.Write((byte)payload.Length);
+                byte2 |= (byte)payload.Length;
+                dataOut.WriteByte(ref pos, byte2);
             }
 
-            if (payload.Length > 0)
-                writer.Write(payload);
+            // TODO - implement mask key writing for client -> server sending support
 
-            return new MemoryBuffer(data, writer.Length);
+            if (payload.Length > 0)
+            {
+                dataOut.WriteBytes(ref pos, payload);
+            }
+            return pos;
         }
 
         private void ReceiveData()
