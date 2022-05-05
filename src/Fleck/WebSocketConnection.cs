@@ -1,6 +1,10 @@
 ﻿using System;
 using System.Buffers;
 using System.IO;
+using System.Text;
+using System.Net.Sockets;
+using Fleck.Helpers;
+using BinaryEx;
 
 namespace Fleck
 {
@@ -9,72 +13,66 @@ namespace Fleck
         private const int ReadSize = 8 * 1024;
 
         public ISocket Socket { get; set; }
-        public IHandler Handler { get; set; }
-        public Action OnOpen { get; set; }
-        public Action OnClose { get; set; }
-        public Action<string> OnMessage { get; set; }
-        public BinaryDataHandler OnBinary { get; set; }
-        public BinaryDataHandler OnPing { get; set; }
-        public BinaryDataHandler OnPong { get; set; }
-        public Action<Exception> OnError { get; set; }
         public IWebSocketConnectionInfo ConnectionInfo { get; private set; }
-        public bool IsAvailable => !_closing && !_closed && Socket.Connected;
+        public bool IsAvailable => !closing && !closed && Socket.Connected;
 
-        private readonly Action<IWebSocketConnection> _initialize;
-        private readonly Func<IWebSocketConnection, WebSocketHttpRequest, IHandler> _handlerFactory;
-        private readonly Func<ArraySegment<byte>, WebSocketHttpRequest> _parseRequest;
-        private byte[] _receiveBuffer;
-        private int _receiveOffset;
-        private bool _closing;
-        private bool _closed;
+        public IWebSocketDataHandler DataHandler { get; private set; }
+        private byte[] receiveBuffer;
+        private int receiveOffset;
+        private bool closing;
+        private bool closed;
+        private bool handshakeCompleted = false;
 
         public WebSocketConnection(
             ISocket socket,
-            Action<IWebSocketConnection> initialize,
-            Func<ArraySegment<byte>, WebSocketHttpRequest> parseRequest,
-            Func<IWebSocketConnection, WebSocketHttpRequest, IHandler> handlerFactory)
+            IWebSocketDataHandler dataHandler)
         {
             Socket = socket;
-            OnOpen = () => { };
-            OnClose = () => { };
-            OnMessage = x => { };
-            OnBinary = x => { };
-            OnPing = x => { };
-            OnPong = x => { };
-            OnError = x => { };
-            _initialize = initialize;
-            _handlerFactory = handlerFactory;
-            _parseRequest = parseRequest;
+            DataHandler = dataHandler;
         }
 
-        public void Send(string message)
+        const int MaxStackLimit = 1024;
+
+
+        private static Span<byte> EnsureSize(byte[]? data, int byteCount)
         {
-            SendImpl(Handler.FrameText(message));
+
+            // Return allocated arraypool data
+            if (data?.Length < byteCount)
+            {
+                ArrayPool<byte>.Shared.Return(data);
+                data = null;
+            }
+
+            if (data == null)
+            {
+                data = ArrayPool<byte>.Shared.Rent(byteCount);
+            }
+            return new Span<byte>(data, 0, byteCount);
         }
 
-        public void SendText(MemoryBuffer utf8StringBytes)
-        {
-            SendImpl(Handler.FrameText(utf8StringBytes));
-        }
+        // byte[]? strTmpData = null;
 
-        public void Send(MemoryBuffer message)
-        {
-            SendImpl(Handler.FrameBinary(message));
-        }
+        // /// <summary>
+        // /// Send string as utf-8 bytes without memory allocation
+        // /// </summary>
+        // /// <param name="message"></param>
+        // public void Send(string message)
+        // {
+        //     int byteCount = Encoding.UTF8.GetByteCount(message);
 
-        public void SendPing(MemoryBuffer message)
-        {
-            SendImpl(Handler.FramePing(message));
-        }
+        //     Span<byte> spanLocation = EnsureSize(strTmpData, byteCount);
+        //     var realBytes = Encoding.UTF8.GetBytes(message, spanLocation);
 
-        public void SendPong(MemoryBuffer message)
-        {
-            SendImpl(Handler.FramePong(message));
-        }
+        //     SendText(spanLocation.Slice(0, realBytes));
+        // }
 
-        private void SendImpl(MemoryBuffer buffer)
+        byte[]? tmpPayloadData = null;
+
+
+        public void SendMessage(FrameType frameType, ReadOnlySpan<byte> payload, bool endOfMessage = true)
         {
-            if (Handler == null)
+            if (!handshakeCompleted)
                 throw new InvalidOperationException("Cannot send before handshake");
 
             if (!IsAvailable)
@@ -83,93 +81,83 @@ namespace Fleck
                 return;
             }
 
-            SendBytes(buffer);
+            Span<byte> dataOut = stackalloc byte[1024];
+            int writtenSize = Handlers.Hybi13Handler.WriteFrame(dataOut, payload, frameType, endOfMessage);
+
+            SendBytes(dataOut);
         }
 
-        public void Close()
+        public void Close(ushort code = WebSocketStatusCodes.NormalClosure)
         {
-            Close(WebSocketStatusCodes.NormalClosure);
-        }
-
-        public void Close(ushort code)
-        {
-            if (_closing || _closed)
+            if (closing || closed)
                 return;
 
-            _closing = true;
+            closing = true;
 
-            if (Handler == null || !Socket.Connected)
+            if (!handshakeCompleted || !Socket.Connected)
             {
                 CloseSocket();
                 return;
             }
 
-            var bytes = Handler.FrameClose(code);
-            if (bytes.Length == 0)
+            Span<byte> dataIn = stackalloc byte[2];
+            dataIn.WriteUInt16BE(0, code);
+
+            Span<byte> dataOut = stackalloc byte[32];
+
+            int writtenSize = Handlers.Hybi13Handler.WriteFrame(dataOut, dataIn, FrameType.Close);
+            dataOut = dataOut.Slice(0, writtenSize);
+
+            if (dataOut.Length == 0)
+            {
                 CloseSocket();
-            else
-                SendBytes(bytes, (i, s) => i.CloseSocket());
+                return;
+            }
+
+            SendBytes(dataOut);
+            CloseSocket();
         }
 
-        public bool CreateHandler(ArraySegment<byte> data)
+        public bool CreateHandler(ReadOnlySpan<byte> data)
         {
-            var request = _parseRequest(data);
+            var request = RequestParser.Parse(data);
             if (request == null)
                 return false;
 
-            Handler = _handlerFactory(this, request);
-            if (Handler == null)
-                return false;
-
-            ConnectionInfo = WebSocketConnectionInfo.Create(request, Socket.RemoteIpAddress, Socket.RemotePort);
-
-            _initialize(this);
-
-            var handshake = Handler.CreateHandshake();
-            SendBytes(handshake, (instance, success) =>
+            if (!request.Headers.TryGetValue("Sec-WebSocket-Version", out string version) || version != "13")
             {
-                if (success)
-                    instance.OnOpen();
-            });
+                throw new WebSocketException(WebSocketStatusCodes.ProtocolError);
+            }
 
-            return true;
+            var ip = Socket.RemoteIpAddress;
+            var port = Socket.RemotePort;
+
+            if (ip is null || port is null)
+            {
+                return false;
+            }
+
+            ConnectionInfo = WebSocketConnectionInfo.Create(request, ip, port.Value);
+
+            var handshake = Handlers.Hybi13Handler.CreateHandshake(request);
+            if (SendBytes(handshake))
+            {
+                DataHandler.OnOpen();
+                return true;
+            }
+
+            return false;
         }
 
-        public void StartReceiving()
+        public void Receiving()
         {
             if (!IsAvailable)
                 return;
 
-            if (_receiveBuffer == null)
-                _receiveBuffer = ArrayPool<byte>.Shared.Rent(ReadSize);
+            if (receiveBuffer == null)
+                receiveBuffer = ArrayPool<byte>.Shared.Rent(ReadSize);
 
-            Receive(_receiveBuffer, 0);
-        }
-
-        private void HandleReadSuccess(int bytesRead)
-        {
-            if (bytesRead <= 0)
-            {
-                FleckLog.Debug("0 bytes read. Closing.");
-                CloseSocket();
-                return;
-            }
-
-            FleckLog.Debug($"{bytesRead} bytes read");
-
-            var readBytes = new Span<byte>(_receiveBuffer, 0, bytesRead);
-
-            if (Handler != null)
-            {
-                Handler.Receive(readBytes);
-                Receive(_receiveBuffer, 0);
-            }
-            else
-            {
-                _receiveOffset += bytesRead;
-                var started = CreateHandler(new ArraySegment<byte>(_receiveBuffer, 0, _receiveOffset));
-                Receive(_receiveBuffer, started ? 0 : _receiveOffset);
-            }
+            Receive(receiveBuffer, 0);
         }
 
         private void HandleReadError(Exception e)
@@ -206,24 +194,38 @@ namespace Fleck
             }
         }
 
-        private void Receive(byte[] buffer, int offset)
+        private void Receive(Span<byte> data)
         {
             try
             {
-                Socket.Stream.BeginRead(buffer, offset, buffer.Length - offset, result =>
+                // Don't read from the socket if there is no data available
+                // This is so we don't block unneccesarilly 
+                if (Socket.BytesAvailable == 0)
                 {
-                    var instance = (WebSocketConnection)result.AsyncState;
+                    return;
+                }
+                var bytesRead = Socket.Read(data);
 
-                    try
-                    {
-                        var bytesRead = instance.Socket.Stream.EndRead(result);
-                        instance.HandleReadSuccess(bytesRead);
-                    }
-                    catch (Exception e)
-                    {
-                        instance.HandleReadError(e);
-                    }
-                }, this);
+                if (bytesRead <= 0)
+                {
+                    FleckLog.Debug("0 bytes read. Closing.");
+                    CloseSocket();
+                    return;
+                }
+
+                var readBytes = data.Slice(0, bytesRead);
+
+                if (Handler != null)
+                {
+                    Handler.Receive(readBytes);
+                }
+                else
+                {
+                    receiveOffset += bytesRead;
+                    Span<byte> buffer = new Span<byte>(receiveBuffer, 0, receiveOffset);
+                    var started = CreateHandler(buffer);
+                    Receive(receiveBuffer, started ? 0 : receiveOffset);
+                }
             }
             catch (Exception e)
             {
@@ -242,61 +244,33 @@ namespace Fleck
             CloseSocket();
         }
 
-        private void SendBytes(MemoryBuffer bytes, Action<WebSocketConnection, bool> callback = null)
+        private bool SendBytes(ReadOnlySpan<byte> bytes)
         {
             try
             {
-                // TODO: this allocates for the delegate - could probably avoid that with QueuedStream
-                Socket.Stream.BeginWrite(bytes.Data, 0, bytes.Length, result =>
-                {
-                    var instance = (WebSocketConnection)result.AsyncState;
-                    var success = false;
-
-                    try
-                    {
-                        instance.Socket.Stream.EndWrite(result);
-                        FleckLog.Debug($"Sent {bytes.Length} bytes");
-
-                        success = true;
-                    }
-                    catch (Exception e)
-                    {
-                        instance.HandleWriteError(e);
-                    }
-                    finally
-                    {
-                        bytes.Dispose();
-                    }
-
-                    try
-                    {
-                        callback?.Invoke(instance, success);
-                    }
-                    catch (Exception e)
-                    {
-                        instance.OnError(e);
-                    }
-                }, this);
+                Socket.Write(bytes);
+                return true;
             }
             catch (Exception e)
             {
                 HandleWriteError(e);
+                return false;
             }
         }
 
         private void CloseSocket()
         {
-            _closing = true;
+            closing = true;
             OnClose();
-            _closed = true;
+            closed = true;
             Socket.Close();
             Socket.Dispose();
-            _closing = false;
+            closing = false;
 
-            if (_receiveBuffer != null)
+            if (receiveBuffer != null)
             {
-                ArrayPool<byte>.Shared.Return(_receiveBuffer);
-                _receiveBuffer = null;
+                ArrayPool<byte>.Shared.Return(receiveBuffer);
+                receiveBuffer = null;
             }
         }
     }
