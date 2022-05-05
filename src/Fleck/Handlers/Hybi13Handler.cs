@@ -4,16 +4,18 @@ using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
 using System.Threading;
+using Cysharp.Text;
+using System.Buffers.Binary;
+using BinaryEx;
 
 namespace Fleck.Handlers
 {
-    internal class Hybi13Handler : IHandler
+    internal class Hybi13Handler
     {
         private const string WebSocketResponseGuid = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
         private static readonly Encoding UTF8 = new UTF8Encoding(false, true);
-        private static readonly SHA1 SHA1 = SHA1.Create();
-        private static readonly ThreadLocal<StringBuilder> StringBuilder = new ThreadLocal<StringBuilder>(() => new StringBuilder(1024));
         private static readonly ThreadLocal<SHA1> sha1Hash = new ThreadLocal<SHA1>(() => SHA1.Create());
+        private static Utf8ValueStringBuilder zBuilder = ZString.CreateUtf8StringBuilder();
 
         private readonly WebSocketHttpRequest _request;
         private readonly IWebSocketConnection _connection;
@@ -50,6 +52,7 @@ namespace Fleck.Handlers
                 ArrayPool<byte>.Shared.Return(_message);
                 _message = null;
             }
+            zBuilder.Dispose();
         }
 
         public void Receive(Span<byte> newData)
@@ -64,23 +67,20 @@ namespace Fleck.Handlers
             ReceiveData();
         }
 
-        public MemoryBuffer CreateHandshake()
+        public static ReadOnlySpan<byte> CreateHandshake(WebSocketHttpRequest request)
         {
             FleckLog.Debug("Building Hybi-14 Response");
+            zBuilder.Clear();
 
-            var builder = StringBuilder.Value;
-            builder.Clear();
+            zBuilder.Append("HTTP/1.1 101 Switching Protocols\r\n");
+            zBuilder.Append("Upgrade: websocket\r\n");
+            zBuilder.Append("Connection: Upgrade\r\n");
 
-            builder.Append("HTTP/1.1 101 Switching Protocols\r\n");
-            builder.Append("Upgrade: websocket\r\n");
-            builder.Append("Connection: Upgrade\r\n");
+            var responseKey = CreateResponseKey(request["Sec-WebSocket-Key"]);
+            zBuilder.AppendFormat("Sec-WebSocket-Accept: {0}\r\n", responseKey);
+            zBuilder.Append("\r\n");
 
-            var responseKey = CreateResponseKey(_request["Sec-WebSocket-Key"]);
-            builder.AppendFormat("Sec-WebSocket-Accept: {0}\r\n", responseKey);
-            builder.Append("\r\n");
-
-            var bytes = UTF8.GetBytes(builder.ToString());
-            return new MemoryBuffer(bytes, bytes.Length, false);
+            return zBuilder.AsSpan();
         }
 
         public MemoryBuffer FrameText(string text)
