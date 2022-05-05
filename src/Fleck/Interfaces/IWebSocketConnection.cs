@@ -2,21 +2,11 @@
 
 namespace Fleck
 {
-    public delegate void BinaryDataHandler(Span<byte> data);
-
     public interface IWebSocketConnection
     {
-        Action OnOpen { get; set; }
-        Action OnClose { get; set; }
-        Action<string> OnMessage { get; set; }
-        BinaryDataHandler OnBinary { get; set; }
-        BinaryDataHandler OnPing { get; set; }
-        BinaryDataHandler OnPong { get; set; }
-        Action<Exception> OnError { get; set; }
-        void Send(string message);
-        void Send(MemoryBuffer message);
-        void SendPing(MemoryBuffer message);
-        void SendPong(MemoryBuffer message);
+        IWebSocketDataHandler DataHandler { get; }
+
+        void SendMessage(FrameType type, ReadOnlySpan<byte> data, bool endOfMessage = true);
         void Close();
         IWebSocketConnectionInfo ConnectionInfo { get; }
         bool IsAvailable { get; }

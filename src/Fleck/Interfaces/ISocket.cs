@@ -10,14 +10,26 @@ namespace Fleck
     public interface ISocket
     {
         bool Connected { get; }
-        IPAddress RemoteIpAddress { get; }
-        int RemotePort { get; }
-        Stream Stream { get; }
-        bool NoDelay { get; set; }
-        EndPoint LocalEndPoint { get; }
+        int BytesAvailable { get; set; }
 
-        Task<ISocket> Accept(Action<ISocket> callback, Action<Exception> error);
-        Task Authenticate(X509Certificate2 certificate, SslProtocols enabledSslProtocols, Action callback, Action<Exception> error);
+        EndPoint LocalEndPoint { get; }
+        EndPoint RemoteEndPoint { get; }
+
+        IPAddress? RemoteIpAddress { get; }
+        int? RemotePort { get; }
+        bool NoDelay { get; set; }
+
+        ISocket Accept();
+        ValueTask<ISocket> AcceptAsync();
+
+        void Authenticate(X509Certificate2 certificate, SslProtocols enabledSslProtocols);
+        Task AuthenticateAsync(X509Certificate2 certificate, SslProtocols enabledSslProtocols);
+
+        int Read(Span<byte> data);
+        ValueTask<int> ReadAsync(Memory<byte> data);
+
+        void Write(ReadOnlySpan<byte> data);
+        ValueTask WriteAsync(ReadOnlyMemory<byte> data);
 
         void Dispose();
         void Close();
