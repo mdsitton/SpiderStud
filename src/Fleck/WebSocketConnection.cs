@@ -5,6 +5,7 @@ using System.Text;
 using System.Net.Sockets;
 using Fleck.Helpers;
 using BinaryEx;
+using System.Linq;
 
 namespace Fleck
 {
@@ -126,6 +127,7 @@ namespace Fleck
 
             if (!request.Headers.TryGetValue("Sec-WebSocket-Version", out string version) || version != "13")
             {
+                // TODO - Return http 400 error since we have not established a websocket connection with the handshake
                 throw new WebSocketException(WebSocketStatusCodes.ProtocolError);
             }
 
@@ -157,7 +159,7 @@ namespace Fleck
             if (receiveBuffer == null)
                 receiveBuffer = ArrayPool<byte>.Shared.Rent(ReadSize);
 
-            Receive(receiveBuffer, 0);
+            Receive(receiveBuffer);
         }
 
         private void HandleReadError(Exception e)
@@ -224,12 +226,41 @@ namespace Fleck
                     receiveOffset += bytesRead;
                     Span<byte> buffer = new Span<byte>(receiveBuffer, 0, receiveOffset);
                     var started = CreateHandler(buffer);
-                    Receive(receiveBuffer, started ? 0 : receiveOffset);
+                    Receive(new Span<byte>(receiveBuffer, started ? 0 : receiveOffset, receiveBuffer.Length));
                 }
             }
             catch (Exception e)
             {
                 HandleReadError(e);
+            }
+        }
+
+        private void DispatchFrameHandler(FrameType frameType, bool endOfMessage, ReadOnlySpan<byte> frameData)
+        {
+            switch (frameType)
+            {
+                case FrameType.Close:
+                    if (frameData.Length == 1 || frameData.Length > 125)
+                        throw new WebSocketException(WebSocketStatusCodes.ProtocolError);
+
+                    if (frameData.Length >= 2)
+                    {
+                        var closeCode = frameData.ReadUInt16BE(0);
+                        if (!WebSocketStatusCodes.ValidCloseCodes.Contains(closeCode) && (closeCode < 3000 || closeCode > 4999))
+                            throw new WebSocketException(WebSocketStatusCodes.ProtocolError);
+                    }
+
+                    DataHandler.OnClose();
+                    break;
+                case FrameType.Binary:
+                case FrameType.Ping:
+                case FrameType.Pong:
+                case FrameType.Text:
+                    DataHandler.OnMessage(frameType, endOfMessage, frameData);
+                    break;
+                default:
+                    FleckLog.Debug("Received unhandled " + frameType);
+                    break;
             }
         }
 

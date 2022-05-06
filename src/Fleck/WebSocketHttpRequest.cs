@@ -5,20 +5,10 @@ namespace Fleck
 {
     public class WebSocketHttpRequest
     {
-        public string Method { get; set; }
+        public string Method { get; set; } = String.Empty;
 
-        public string Path { get; set; }
+        public string Path { get; set; } = String.Empty;
 
-        public string this[string name]
-        {
-            get
-            {
-                string value;
-                return Headers.TryGetValue(name, out value) ? value : default;
-            }
-        }
-
-        public IDictionary<string, string> Headers { get; } =
-            new Dictionary<string, string>(StringComparer.InvariantCultureIgnoreCase);
+        public IDictionary<string, string> Headers { get; } = new Dictionary<string, string>(StringComparer.InvariantCultureIgnoreCase);
     }
 }
