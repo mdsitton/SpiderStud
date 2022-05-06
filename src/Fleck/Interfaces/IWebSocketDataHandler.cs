@@ -5,7 +5,7 @@ using System.Threading.Tasks;
 
 namespace Fleck
 {
-    public interface IWebSocketDataHandler
+    public interface IWebSocketClientHandler
     {
         void OnError(Exception e);
         void OnOpen();

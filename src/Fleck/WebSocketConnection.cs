@@ -5,7 +5,6 @@ using System.Text;
 using System.Net.Sockets;
 using Fleck.Helpers;
 using BinaryEx;
-using System.Linq;
 
 namespace Fleck
 {
@@ -13,23 +12,22 @@ namespace Fleck
     {
         private const int ReadSize = 8 * 1024;
 
-        public ISocket Socket { get; set; }
-        public IWebSocketConnectionInfo ConnectionInfo { get; private set; }
+        public SslSocket Socket { get; set; }
+        public IWebSocketConnectionInfo? ConnectionInfo { get; private set; }
         public bool IsAvailable => !closing && !closed && Socket.Connected;
 
-        public IWebSocketDataHandler DataHandler { get; private set; }
+        public IWebSocketClientHandler DataHandler { get; private set; }
         private byte[] receiveBuffer;
         private int receiveOffset;
         private bool closing;
         private bool closed;
         private bool handshakeCompleted = false;
 
-        public WebSocketConnection(
-            ISocket socket,
-            IWebSocketDataHandler dataHandler)
+        public WebSocketConnection(SslSocket socket, IWebSocketClientHandler dataHandler)
         {
             Socket = socket;
             DataHandler = dataHandler;
+            receiveBuffer = ArrayPool<byte>.Shared.Rent(ReadSize);
         }
 
         const int MaxStackLimit = 1024;
@@ -83,12 +81,12 @@ namespace Fleck
             }
 
             Span<byte> dataOut = stackalloc byte[1024];
-            int writtenSize = Handlers.Hybi13Handler.WriteFrame(dataOut, payload, frameType, endOfMessage);
+            int writtenSize = FrameParsing.WriteFrame(dataOut, payload, frameType, endOfMessage);
 
             SendBytes(dataOut);
         }
 
-        public void Close(ushort code = WebSocketStatusCodes.NormalClosure)
+        public void Close(StatusCode code = StatusCode.NormalClosure)
         {
             if (closing || closed)
                 return;
@@ -102,11 +100,11 @@ namespace Fleck
             }
 
             Span<byte> dataIn = stackalloc byte[2];
-            dataIn.WriteUInt16BE(0, code);
+            dataIn.WriteUInt16BE(0, (ushort)code);
 
             Span<byte> dataOut = stackalloc byte[32];
 
-            int writtenSize = Handlers.Hybi13Handler.WriteFrame(dataOut, dataIn, FrameType.Close);
+            int writtenSize = FrameParsing.WriteFrame(dataOut, dataIn, FrameType.Close);
             dataOut = dataOut.Slice(0, writtenSize);
 
             if (dataOut.Length == 0)
@@ -121,14 +119,14 @@ namespace Fleck
 
         public bool CreateHandler(ReadOnlySpan<byte> data)
         {
-            var request = RequestParser.Parse(data);
+            var request = HttpHeader.Parse(data);
             if (request == null)
                 return false;
 
             if (!request.Headers.TryGetValue("Sec-WebSocket-Version", out string version) || version != "13")
             {
                 // TODO - Return http 400 error since we have not established a websocket connection with the handshake
-                throw new WebSocketException(WebSocketStatusCodes.ProtocolError);
+                throw new WebSocketException(StatusCode.ProtocolError);
             }
 
             var ip = Socket.RemoteIpAddress;
@@ -141,7 +139,7 @@ namespace Fleck
 
             ConnectionInfo = WebSocketConnectionInfo.Create(request, ip, port.Value);
 
-            var handshake = Handlers.Hybi13Handler.CreateHandshake(request);
+            var handshake = HttpHeader.CreateHandshake(request);
             if (SendBytes(handshake))
             {
                 DataHandler.OnOpen();
@@ -156,17 +154,18 @@ namespace Fleck
             if (!IsAvailable)
                 return;
 
-            if (receiveBuffer == null)
-                receiveBuffer = ArrayPool<byte>.Shared.Rent(ReadSize);
-
             Receive(receiveBuffer);
+        }
+
+        public void Update()
+        {
+
         }
 
         private void HandleReadError(Exception e)
         {
-            if (e is AggregateException)
+            if (e is AggregateException agg)
             {
-                var agg = e as AggregateException;
                 HandleReadError(agg.InnerException);
                 return;
             }
@@ -177,22 +176,22 @@ namespace Fleck
                 return;
             }
 
-            OnError(e);
+            DataHandler.OnError(e);
 
-            if (e is WebSocketException)
+            if (e is WebSocketException wse)
             {
                 FleckLog.Debug("Error while reading", e);
-                Close(((WebSocketException)e).StatusCode);
+                Close(wse.StatusCode);
             }
             else if (e is IOException)
             {
                 FleckLog.Debug("Error while reading", e);
-                Close(WebSocketStatusCodes.AbnormalClosure);
+                Close(StatusCode.AbnormalClosure);
             }
             else
             {
                 FleckLog.Error("Application Error", e);
-                Close(WebSocketStatusCodes.InternalServerError);
+                Close(StatusCode.InternalServerError);
             }
         }
 
@@ -219,7 +218,8 @@ namespace Fleck
 
                 if (Handler != null)
                 {
-                    Handler.Receive(readBytes);
+                    FrameParsing.Receive(readBytes);
+                    DispatchFrameHandler();
                 }
                 else
                 {
@@ -241,13 +241,15 @@ namespace Fleck
             {
                 case FrameType.Close:
                     if (frameData.Length == 1 || frameData.Length > 125)
-                        throw new WebSocketException(WebSocketStatusCodes.ProtocolError);
+                        throw new WebSocketException(StatusCode.ProtocolError);
 
                     if (frameData.Length >= 2)
                     {
-                        var closeCode = frameData.ReadUInt16BE(0);
-                        if (!WebSocketStatusCodes.ValidCloseCodes.Contains(closeCode) && (closeCode < 3000 || closeCode > 4999))
-                            throw new WebSocketException(WebSocketStatusCodes.ProtocolError);
+                        var closeCode = (StatusCode)frameData.ReadUInt16BE(0);
+                        if (!closeCode.IsValidCode())
+                        {
+                            throw new WebSocketException(StatusCode.ProtocolError);
+                        }
                     }
 
                     DataHandler.OnClose();
@@ -271,7 +273,7 @@ namespace Fleck
             else
                 FleckLog.Info("Failed to send. Disconnecting.", e);
 
-            OnError(e);
+            DataHandler.OnError(e);
             CloseSocket();
         }
 
@@ -292,7 +294,7 @@ namespace Fleck
         private void CloseSocket()
         {
             closing = true;
-            OnClose();
+            DataHandler.OnClose();
             closed = true;
             Socket.Close();
             Socket.Dispose();
