@@ -1,18 +1,21 @@
 using System;
+using System.Security.Cryptography;
 using BinaryEx;
 
-namespace Fleck.Handlers
+namespace Fleck
 {
-    internal ref struct FrameReadResult
+    internal ref struct FrameReadState
     {
-        public bool FrameFullyParsed;
         public bool FrameHeaderFullyParsed;
+        public bool PayloadReady;
         public bool EndOfMessage;
         public byte ReservedBits;
         public FrameType FrameType;
         public bool IsMasked;
+        public ReadOnlySpan<byte> MaskKey;
         public int PayloadLength;
-        public int DataReadEndPos;
+        public int PayloadStartOffset;
+        public ushort ErrorCode;
     }
 
     internal class FrameParsing
@@ -58,87 +61,118 @@ namespace Fleck.Handlers
                 dataOut.WriteByte(ref pos, byte2);
             }
 
-            // TODO - implement mask key writing for client -> server sending support
+            // Only allocate stack bytes if we are writing out a masked frame
+            Span<byte> maskKey = maskedFrame ? stackalloc byte[4] : Span<byte>.Empty;
+
+            int payloadStart = pos;
+
+            if (maskedFrame)
+            {
+                RandomNumberGenerator.Fill(maskKey);
+                dataOut.WriteBytes(ref pos, maskKey);
+                payloadStart = pos;
+            }
 
             if (payload.Length > 0)
             {
                 dataOut.WriteBytes(ref pos, payload);
             }
+
+            if (maskedFrame)
+            {
+                // mask payload data in-place
+                Span<byte> payloadLocation = dataOut.Slice(payloadStart, payload.Length);
+                ApplyDataMasking(payloadLocation, payloadLocation, maskKey);
+            }
+
             return pos;
         }
 
-        /// <summary>
-        /// Read websocket frame data
-        /// </summary>
-        /// <param name="data">Raw incoming data from socket</param>
-        /// <param name="messageDataOut">message data</param>
-        /// <returns>number of bytes read from data stream, if 0 no data was read and messageDataOut is not valid data</returns>
-        internal static FrameReadResult ReadFrame(ReadOnlySpan<byte> data, Span<byte> messageDataOut)
+        private static unsafe void ApplyDataMasking(ReadOnlySpan<byte> dataIn, Span<byte> dataOut, Span<byte> maskKey)
         {
-            var dataLen = data.Length;
-            FrameReadResult result = new FrameReadResult();
+            for (var i = 0; i < dataIn.Length; i++)
+            {
+                // i & (4-1) is equivelent to i % 4 this is just an optimization
+                dataOut[i] = (byte)(dataIn[i] ^ maskKey[i & 3]);
+            }
+        }
 
+        /// <summary>
+        /// Parse websocket frame header while validating if more data should arrive
+        /// </summary>
+        /// <param name="dataIn">Raw incoming data from socket</param>
+        /// <returns>
+        /// Returns <see cref="FrameReadState"/> with the parser state.
+        /// </returns>
+        internal static FrameReadState ReadFrameHeader(ReadOnlySpan<byte> dataIn)
+        {
+            var dataLen = dataIn.Length;
+            FrameReadState result = new FrameReadState();
+
+
+            // verify we have first two bytes of frame data
             if (dataLen < 2)
                 return result;
 
-            result.EndOfMessage = (data[0] & 128) != 0;
-            result.ReservedBits = (byte)((data[0] & 112) >> 4);
-            result.FrameType = (FrameType)(data[0] & 15);
-            result.IsMasked = (data[1] & 128) != 0;
-            var length = data[1] & 127;
+            result.EndOfMessage = (dataIn[0] & 0x80) != 0;
+            result.ReservedBits = (byte)((dataIn[0] & 0x70) >> 4);
+            result.FrameType = (FrameType)(dataIn[0] & 0xf);
+            result.IsMasked = (dataIn[1] & 0x80) != 0;
+            var length = dataIn[1] & 0x7f;
 
-            if (!result.IsMasked || !result.FrameType.IsDefined() || result.ReservedBits != 0)
-                throw new WebSocketException(WebSocketStatusCodes.ProtocolError);
+            if (!result.FrameType.IsDefined() || result.ReservedBits != 0)
+            {
+                result.ErrorCode = WebSocketStatusCodes.ProtocolError;
+                return result;
+            }
 
             int index = 2;
 
-            if (length == 127)
+            if (length == 127) // int64 payload length
             {
+                // verify we have the data required for extended length
                 if (dataLen < index + 8)
                     return result;
 
-                long longLength = data.ReadInt64BE(ref index);
+                long longLength = dataIn.ReadInt64BE(ref index);
 
                 // In C# we cannot represent any byte arrays longer than an int32 directly
                 // So we need to close the connection if this occurs
                 if (longLength > (Int32.MaxValue - index + 4))
                 {
-                    throw new WebSocketException(WebSocketStatusCodes.MessageTooBig);
+                    result.ErrorCode = WebSocketStatusCodes.MessageTooBig;
+                    return result;
                 }
                 result.PayloadLength = (int)longLength;
             }
-            else if (length == 126)
+            else if (length == 126) // uint16 payload length
             {
+                // verify we have the data required for extended length
                 if (dataLen < index + 2)
                     return result;
-                result.PayloadLength = data.ReadUInt16BE(ref index);
+                result.PayloadLength = dataIn.ReadUInt16BE(ref index);
             }
-            else
+            else  // byte payload length 0-125
             {
                 result.PayloadLength = length;
             }
-            if (dataLen < index + 4)
-                return result;
 
-            var maskBytes = data.Slice(index, 4);
-            index += 4;
-            result.FrameHeaderFullyParsed = true;
-
-            var bytesUsed = index + result.PayloadLength;
-
-            if (dataLen < bytesUsed)
-                return result;
-
-
-            var payloadData = data.Slice(index, result.PayloadLength);
-            for (var i = 0; i < result.PayloadLength; i++)
+            if (result.IsMasked)
             {
-                messageDataOut[i] = (byte)(payloadData[i] ^ maskBytes[i % 4]);
-            }
-            result.DataReadEndPos = bytesUsed;
-            result.FrameFullyParsed = true;
+                // verify we have key data available
+                if (dataLen < index + 4)
+                    return result;
 
-            // TODO need some way to return additional frame data to caller
+                result.MaskKey = dataIn.Slice(index, 4);
+                index += 4;
+            }
+            result.FrameHeaderFullyParsed = true;
+            result.PayloadStartOffset = index;
+
+            // if we have the full data payload available this will be set to true
+            // If not the caller will need to know to wait on the remaining payload data to arrive
+            result.PayloadReady = dataLen >= (index + result.PayloadLength);
+
             return result;
         }
     }
