@@ -65,12 +65,17 @@ namespace Fleck
         {
             if (clientSocket == null) return; // socket closed
 
-            FleckLog.Debug($"Client connected from {clientSocket.RemoteIpAddress}:{clientSocket.RemotePort.ToString()}");
+            FleckLog.Debug($"Client connected from {clientSocket.RemoteIpAddress}:{clientSocket.RemotePort}");
 
             var connection = new WebSocketConnection(clientSocket, clientHandlerFactory());
 
             if (IsSecure)
             {
+                if (Certificate == null)
+                {
+                    throw new InvalidOperationException("Secure WebSocket must have certificates defined");
+                }
+
                 FleckLog.Debug("Authenticating Secure Connection");
                 try
                 {
