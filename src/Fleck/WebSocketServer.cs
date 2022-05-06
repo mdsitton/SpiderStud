@@ -5,6 +5,7 @@ using System.Security.Cryptography.X509Certificates;
 using System.Security.Authentication;
 using Fleck.Helpers;
 using System.Threading;
+using System.Collections.Generic;
 
 namespace Fleck
 {
@@ -15,7 +16,8 @@ namespace Fleck
         private readonly string scheme;
         private readonly IPAddress locationIP;
         private readonly ClientHandlerFactory clientHandlerFactory;
-        private Thread? clientListenerThread = null;
+        private Thread? clientConnectionThread = null;
+        private Thread? clientReceiveThread = null;
 
         public SslSocket ListenerSocket { get; set; }
         public string Location { get; }
@@ -26,6 +28,8 @@ namespace Fleck
         public bool RestartAfterListenError { get; set; }
 
         public bool IsSecure => scheme == "wss" && Certificate != null;
+
+        List<WebSocketConnection> activeConnections = new List<WebSocketConnection>();
 
         public WebSocketServer(string location, ClientHandlerFactory clientHandlerFactory, bool supportDualStack = true)
         {
@@ -93,12 +97,84 @@ namespace Fleck
                     return;
                 }
             }
-            clientListenerThread = new Thread(ClientListenerThread);
-            clientListenerThread.Start();
+            if (clientConnectionThread == null)
+            {
+                clientConnectionThread = new Thread(ClientConnectionThread);
+                clientConnectionThread.Start();
+            }
+
+            if (clientReceiveThread == null)
+            {
+                clientReceiveThread = new Thread(ClientReceiveThread);
+                clientReceiveThread.Start();
+            }
         }
 
-        private bool clientConnectRunning = false;
-        private void ClientListenerThread()
+        private void OnClientConnect(SslSocket clientSocket)
+        {
+            if (clientSocket == null) return; // socket closed
+
+            FleckLog.Debug($"Client connected from {clientSocket.RemoteIpAddress}:{clientSocket.RemotePort}");
+
+            var connection = new WebSocketConnection(clientSocket, clientHandlerFactory());
+
+            lock (activeConnections)
+            {
+                activeConnections.Add(connection);
+            }
+
+            if (IsSecure)
+            {
+                if (Certificate == null)
+                {
+                    throw new InvalidOperationException("Secure WebSocket must have certificates defined");
+                }
+
+                FleckLog.Debug("Authenticating Secure Connection");
+                try
+                {
+                    clientSocket.Authenticate(Certificate, EnabledSslProtocols);
+                    // TODO - trigger receiving on client socket
+                    // connection.StartReceiving();
+                }
+                catch (Exception e)
+                {
+                    FleckLog.Warn("Failed to Authenticate", e);
+                }
+            }
+            else
+            {
+                // TODO - trigger receiving on client socket
+                // connection.StartReceiving();
+            }
+        }
+
+        private bool clientReceiveRunning = true;
+        private void ClientReceiveThread()
+        {
+            while (clientReceiveRunning)
+            {
+                bool foundSocketData = false;
+                lock (activeConnections)
+                {
+                    foreach (var connection in activeConnections)
+                    {
+                        if (connection.Socket.BytesAvailable > 0)
+                        {
+                            foundSocketData = true;
+                            connection.Update();
+                        }
+                    }
+                }
+                if (!foundSocketData)
+                {
+                    Thread.Sleep(5);
+                }
+            }
+        }
+
+        private bool clientConnectRunning = true;
+        private void ClientConnectionThread()
         {
             while (clientConnectRunning)
             {
@@ -127,40 +203,6 @@ namespace Fleck
                         }
                     }
                 }
-            }
-        }
-
-        private void OnClientConnect(SslSocket clientSocket)
-        {
-            if (clientSocket == null) return; // socket closed
-
-            FleckLog.Debug($"Client connected from {clientSocket.RemoteIpAddress}:{clientSocket.RemotePort}");
-
-            var connection = new WebSocketConnection(clientSocket, clientHandlerFactory());
-
-            if (IsSecure)
-            {
-                if (Certificate == null)
-                {
-                    throw new InvalidOperationException("Secure WebSocket must have certificates defined");
-                }
-
-                FleckLog.Debug("Authenticating Secure Connection");
-                try
-                {
-                    clientSocket.Authenticate(Certificate, EnabledSslProtocols);
-                    // TODO - trigger receiving on client socket
-                    // connection.StartReceiving();
-                }
-                catch (Exception e)
-                {
-                    FleckLog.Warn("Failed to Authenticate", e);
-                }
-            }
-            else
-            {
-                // TODO - trigger receiving on client socket
-                // connection.StartReceiving();
             }
         }
 

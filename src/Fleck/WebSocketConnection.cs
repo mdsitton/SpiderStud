@@ -149,17 +149,13 @@ namespace Fleck
             return false;
         }
 
-        public void Receiving()
+        public void Update()
         {
+
             if (!IsAvailable)
                 return;
 
             Receive(receiveBuffer);
-        }
-
-        public void Update()
-        {
-
         }
 
         private void HandleReadError(Exception e)
