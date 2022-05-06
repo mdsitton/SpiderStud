@@ -28,10 +28,10 @@ namespace Fleck
             Socket = socket;
             DataHandler = dataHandler;
             receiveBuffer = ArrayPool<byte>.Shared.Rent(ReadSize);
+            dataHandler.OnConfig(this);
         }
 
         const int MaxStackLimit = 1024;
-
 
         private static Span<byte> EnsureSize(byte[]? data, int byteCount)
         {
