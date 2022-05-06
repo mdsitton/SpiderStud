@@ -4,26 +4,41 @@ using System.Net.Sockets;
 using System.Security.Cryptography.X509Certificates;
 using System.Security.Authentication;
 using Fleck.Helpers;
+using System.Threading;
 
 namespace Fleck
 {
-    public class WebSocketServer : IWebSocketServer
-    {
-        private readonly string _scheme;
-        private readonly IPAddress _locationIP;
-        private Action<IWebSocketConnection> _config;
+    public delegate IWebSocketClientHandler ClientHandlerFactory();
 
-        public WebSocketServer(string location, bool supportDualStack = true)
+    public partial class WebSocketServer
+    {
+        private readonly string scheme;
+        private readonly IPAddress locationIP;
+        private readonly ClientHandlerFactory clientHandlerFactory;
+        private Thread? clientListenerThread = null;
+
+        public SslSocket ListenerSocket { get; set; }
+        public string Location { get; }
+        public bool SupportDualStack { get; }
+        public int Port { get; private set; }
+        public X509Certificate2? Certificate { get; set; }
+        public SslProtocols EnabledSslProtocols { get; set; }
+        public bool RestartAfterListenError { get; set; }
+
+        public bool IsSecure => scheme == "wss" && Certificate != null;
+
+        public WebSocketServer(string location, ClientHandlerFactory clientHandlerFactory, bool supportDualStack = true)
         {
             var uri = new Uri(location);
 
             Port = uri.Port;
             Location = location;
+            this.clientHandlerFactory = clientHandlerFactory;
             SupportDualStack = supportDualStack;
 
-            _locationIP = ParseIPAddress(uri);
-            _scheme = uri.Scheme;
-            var socket = new Socket(_locationIP.AddressFamily, SocketType.Stream, ProtocolType.IP);
+            locationIP = ParseIPAddress(uri);
+            scheme = uri.Scheme;
+            var socket = new Socket(locationIP.AddressFamily, SocketType.Stream, ProtocolType.IP);
 
             socket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, 1);
 
@@ -35,18 +50,8 @@ namespace Fleck
                 }
             }
 
-            ListenerSocket = new SocketWrapper(socket);
+            ListenerSocket = new SslSocket(socket);
         }
-
-        public ISocket ListenerSocket { get; set; }
-        public string Location { get; }
-        public bool SupportDualStack { get; }
-        public int Port { get; private set; }
-        public X509Certificate2 Certificate { get; set; }
-        public SslProtocols EnabledSslProtocols { get; set; }
-        public bool RestartAfterListenError { get; set; }
-
-        public bool IsSecure => _scheme == "wss" && Certificate != null;
 
         public void Dispose()
         {
@@ -73,14 +78,14 @@ namespace Fleck
             }
         }
 
-        public void Start(Action<IWebSocketConnection> config)
+        public void Start()
         {
-            var ipLocal = new IPEndPoint(_locationIP, Port);
+            var ipLocal = new IPEndPoint(locationIP, Port);
             ListenerSocket.Bind(ipLocal);
             ListenerSocket.Listen(100);
             Port = ((IPEndPoint)ListenerSocket.LocalEndPoint).Port;
             FleckLog.Info($"Server started at {Location} (actual port {Port})");
-            if (_scheme == "wss")
+            if (scheme == "wss")
             {
                 if (Certificate == null)
                 {
@@ -88,62 +93,71 @@ namespace Fleck
                     return;
                 }
             }
-            ListenForClients();
-            _config = config;
+            clientListenerThread = new Thread(ClientListenerThread);
+            clientListenerThread.Start();
         }
 
-        private void ListenForClients()
+        private bool clientConnectRunning = false;
+        private void ClientListenerThread()
         {
-            ListenerSocket.Accept(OnClientConnect, e =>
+            while (clientConnectRunning)
             {
-                FleckLog.Error("Listener socket is closed", e);
-                if (RestartAfterListenError)
+                try
                 {
-                    FleckLog.Info("Listener socket restarting");
-                    try
+                    var clientSocket = ListenerSocket.Accept();
+                    OnClientConnect(clientSocket);
+                }
+                catch (Exception e)
+                {
+                    FleckLog.Error("Listener socket is closed", e);
+                    if (RestartAfterListenError)
                     {
-                        ListenerSocket.Dispose();
-                        var socket = new Socket(_locationIP.AddressFamily, SocketType.Stream, ProtocolType.IP);
-                        ListenerSocket = new SocketWrapper(socket);
-                        Start(_config);
-                        FleckLog.Info("Listener socket restarted");
-                    }
-                    catch (Exception ex)
-                    {
-                        FleckLog.Error("Listener could not be restarted", ex);
+                        FleckLog.Info("Listener socket restarting");
+                        try
+                        {
+                            ListenerSocket.Dispose();
+                            var socket = new Socket(locationIP.AddressFamily, SocketType.Stream, ProtocolType.IP);
+                            ListenerSocket = new SslSocket(socket);
+                            Start();
+                            FleckLog.Info("Listener socket restarted");
+                        }
+                        catch (Exception ex)
+                        {
+                            FleckLog.Error("Listener could not be restarted", ex);
+                        }
                     }
                 }
-            });
+            }
         }
 
-        private void OnClientConnect(ISocket clientSocket)
+        private void OnClientConnect(SslSocket clientSocket)
         {
             if (clientSocket == null) return; // socket closed
 
             FleckLog.Debug($"Client connected from {clientSocket.RemoteIpAddress}:{clientSocket.RemotePort.ToString()}");
-            ListenForClients();
 
-            WebSocketConnection connection = null;
-
-            connection = new WebSocketConnection(
-                clientSocket,
-                _config,
-                bytes => RequestParser.Parse(bytes, _scheme),
-                (c, r) => HandlerFactory.BuildHandler(r, c));
+            var connection = new WebSocketConnection(clientSocket, clientHandlerFactory());
 
             if (IsSecure)
             {
                 FleckLog.Debug("Authenticating Secure Connection");
-                clientSocket
-                    .Authenticate(Certificate,
-                                  EnabledSslProtocols,
-                                  connection.StartReceiving,
-                                  e => FleckLog.Warn("Failed to Authenticate", e));
+                try
+                {
+                    clientSocket.Authenticate(Certificate, EnabledSslProtocols);
+                    // TODO - trigger receiving on client socket
+                    // connection.StartReceiving();
+                }
+                catch (Exception e)
+                {
+                    FleckLog.Warn("Failed to Authenticate", e);
+                }
             }
             else
             {
-                connection.StartReceiving();
+                // TODO - trigger receiving on client socket
+                // connection.StartReceiving();
             }
         }
+
     }
 }
