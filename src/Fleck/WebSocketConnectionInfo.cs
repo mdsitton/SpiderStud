@@ -9,9 +9,11 @@ namespace Fleck
         {
             var info = new WebSocketConnectionInfo
             {
-                Origin = request["Origin"] ?? request["Sec-WebSocket-Origin"],
-                Host = request["Host"],
-                SubProtocol = request["Sec-WebSocket-Protocol"],
+                Origin = request.Headers["Origin"],
+                Host = request.Headers["Host"],
+                SubProtocol = request.Headers["Sec-WebSocket-Protocol"],
+                ProtocolExtensions = request.Headers["Sec-WebSocket-Extensions"],
+                Key = request.Headers["Sec-WebSocket-Key"],
                 Path = request.Path,
                 ClientIpAddress = clientIp,
                 ClientPort = clientPort,
@@ -25,10 +27,12 @@ namespace Fleck
             Id = Guid.NewGuid();
         }
 
+        public string ProtocolExtensions { get; private set; }
         public string SubProtocol { get; private set; }
         public string Origin { get; private set; }
         public string Host { get; private set; }
         public string Path { get; private set; }
+        public string Key { get; private set; }
         public IPAddress ClientIpAddress { get; set; }
         public int ClientPort { get; set; }
         public Guid Id { get; set; }

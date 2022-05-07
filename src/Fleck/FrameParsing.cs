@@ -29,12 +29,24 @@ namespace Fleck
 
         internal static int WriteFrame(Span<byte> dataOut, ReadOnlySpan<byte> payload, FrameType frameType, bool endOfMessage = true, bool maskedFrame = false)
         {
+            // Only allocate stack bytes if we are writing out a masked frame
+            Span<byte> maskKey = maskedFrame ? stackalloc byte[4] : Span<byte>.Empty;
+
+            if (maskedFrame)
+            {
+                RandomNumberGenerator.Fill(maskKey);
+            }
+            return WriteFrame(dataOut, payload, frameType, maskKey, endOfMessage, maskedFrame);
+        }
+
+        internal static int WriteFrame(Span<byte> dataOut, ReadOnlySpan<byte> payload, FrameType frameType, Span<byte> maskKey, bool endOfMessage = true, bool maskedFrame = false)
+        {
             int pos = 0;
 
             byte frameOpcode = (byte)frameType;
             byte frameFinal = (byte)(endOfMessage ? 0x80 : 0x00); // Fragmented packets 
 
-            byte maskedFrameData = (byte)(maskedFrame ? 0x00 : 0x80); // this is a masked frame 
+            byte maskedFrameData = (byte)(maskedFrame ? 0x80 : 0x00); // this is a masked frame 
 
             byte byte1 = (byte)(frameFinal | frameOpcode);
 
@@ -61,17 +73,12 @@ namespace Fleck
                 dataOut.WriteByte(ref pos, byte2);
             }
 
-            // Only allocate stack bytes if we are writing out a masked frame
-            Span<byte> maskKey = maskedFrame ? stackalloc byte[4] : Span<byte>.Empty;
-
-            int payloadStart = pos;
-
             if (maskedFrame)
             {
-                RandomNumberGenerator.Fill(maskKey);
                 dataOut.WriteBytes(ref pos, maskKey);
-                payloadStart = pos;
             }
+
+            int payloadStart = pos;
 
             if (payload.Length > 0)
             {
@@ -88,7 +95,7 @@ namespace Fleck
             return pos;
         }
 
-        internal static void ApplyDataMasking(ReadOnlySpan<byte> dataIn, Span<byte> dataOut, Span<byte> maskKey)
+        internal static void ApplyDataMasking(ReadOnlySpan<byte> dataIn, Span<byte> dataOut, ReadOnlySpan<byte> maskKey)
         {
             for (var i = 0; i < dataIn.Length; i++)
             {

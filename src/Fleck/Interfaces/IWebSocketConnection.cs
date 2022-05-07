@@ -7,7 +7,7 @@ namespace Fleck
         IWebSocketClientHandler DataHandler { get; }
 
         void SendMessage(FrameType type, ReadOnlySpan<byte> data, bool endOfMessage = true);
-        void Close(StatusCode statusCode);
+        void Close(StatusCode statusCode = StatusCode.NormalClosure);
         IWebSocketConnectionInfo? ConnectionInfo { get; }
         bool IsAvailable { get; }
     }

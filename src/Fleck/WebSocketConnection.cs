@@ -12,7 +12,7 @@ namespace Fleck
     {
         private const int ReadSize = 8 * 1024;
 
-        public SslSocket Socket { get; set; }
+        public ISocket Socket { get; set; }
         public IWebSocketConnectionInfo? ConnectionInfo { get; private set; }
         public bool IsAvailable => !closing && !closed && Socket.Connected;
 
@@ -23,12 +23,12 @@ namespace Fleck
         private bool closed;
         private bool handshakeCompleted = false;
 
-        public WebSocketConnection(SslSocket socket, IWebSocketClientHandler dataHandler)
+        public WebSocketConnection(ISocket socket, WebSocketServer server, IWebSocketClientHandler dataHandler)
         {
             Socket = socket;
             DataHandler = dataHandler;
             receiveBuffer = ArrayPool<byte>.Shared.Rent(ReadSize);
-            dataHandler.OnConfig(this);
+            dataHandler.OnConfig(server, this);
         }
 
         const int MaxStackLimit = 1024;
@@ -212,18 +212,19 @@ namespace Fleck
 
                 var readBytes = data.Slice(0, bytesRead);
 
-                if (Handler != null)
-                {
-                    FrameParsing.Receive(readBytes);
-                    DispatchFrameHandler();
-                }
-                else
-                {
-                    receiveOffset += bytesRead;
-                    Span<byte> buffer = new Span<byte>(receiveBuffer, 0, receiveOffset);
-                    var started = CreateHandler(buffer);
-                    Receive(new Span<byte>(receiveBuffer, started ? 0 : receiveOffset, receiveBuffer.Length));
-                }
+                // TODO - rewrite handler code
+                // if (Handler != null)
+                // {
+                //     FrameParsing.Receive(readBytes);
+                //     DispatchFrameHandler();
+                // }
+                // else
+                // {
+                //     receiveOffset += bytesRead;
+                //     Span<byte> buffer = new Span<byte>(receiveBuffer, 0, receiveOffset);
+                //     var started = CreateHandler(buffer);
+                //     Receive(new Span<byte>(receiveBuffer, started ? 0 : receiveOffset, receiveBuffer.Length));
+                // }
             }
             catch (Exception e)
             {

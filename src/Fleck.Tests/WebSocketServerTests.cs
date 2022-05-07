@@ -2,120 +2,86 @@ using System;
 using System.Net;
 using System.Net.Sockets;
 using System.Security.Authentication;
-using Moq;
-using NUnit.Framework;
+using NSubstitute;
+using Xunit;
+using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 
 namespace Fleck.Tests
 {
-    [TestFixture]
-    public class WebSocketServerTests
+    public class WebSocketServerTests : IDisposable
     {
         private WebSocketServer _server;
-        private MockRepository _repository;
 
-        private IPAddress _ipV4Address;
-        private IPAddress _ipV6Address;
+        private X509Certificate2 cert;
 
-        private Socket _ipV4Socket;
-        private Socket _ipV6Socket;
-
-        [SetUp]
-        public void Setup()
+        public WebSocketServerTests()
         {
-            _repository = new MockRepository(MockBehavior.Default);
             _server = new WebSocketServer("ws://0.0.0.0:8000");
 
-            _ipV4Address = IPAddress.Parse("127.0.0.1");
-            _ipV6Address = IPAddress.Parse("::1");
+            using var rsa = RSA.Create();
+            var certRequest = new CertificateRequest("cn=fleckTest", rsa, HashAlgorithmName.SHA512, RSASignaturePadding.Pkcs1);
 
-            _ipV4Socket = new Socket(_ipV4Address.AddressFamily, SocketType.Stream, ProtocolType.IP);
-            _ipV6Socket = new Socket(_ipV6Address.AddressFamily, SocketType.Stream, ProtocolType.IP);
+            cert = certRequest.CreateSelfSigned(DateTimeOffset.Now, DateTimeOffset.Now.AddDays(1));
         }
 
-        [Test]
-        [Ignore("Fails for an unknown release, was there a breaking change in Moq?")]
+        [Fact]
         public void ShouldStart()
         {
-            var socketMock = _repository.Create<ISocket>();
+            var socketMock = Substitute.For<ISocket>();
+            var ipLocal = new IPEndPoint(IPAddress.Parse("0.0.0.0"), 8000);
+            socketMock.LocalEndPoint.Returns(ipLocal);
+            socketMock.Accept().Returns(Substitute.For<ISocket>());
+            _server.ListenerSocket = socketMock;
+            _server.Start(() => Substitute.For<IWebSocketClientHandler>());
 
-            _server.ListenerSocket = socketMock.Object;
-            _server.Start(connection => { });
 
-            socketMock.Verify(s => s.Bind(It.Is<IPEndPoint>(i => i.Port == 8000)));
-            socketMock.Verify(s => s.Accept(It.IsAny<Action<ISocket>>(), It.IsAny<Action<Exception>>()));
+            socketMock.Received().Bind(ipLocal);
+            socketMock.Received().Accept();
         }
 
-        [Test]
+        [Fact]
         public void ShouldFailToParseIPAddressOfLocation()
         {
-            Assert.Throws(typeof(FormatException), () =>
+            Assert.Throws<FormatException>(() =>
             {
                 new WebSocketServer("ws://localhost:8000");
             });
         }
 
-        [Test]
+        [Fact]
         public void ShouldBeSecureWithWssAndCertificate()
         {
             var server = new WebSocketServer("wss://0.0.0.0:8000");
-            server.Certificate = new X509Certificate2();
-            Assert.IsTrue(server.IsSecure);
+            server.Certificate = cert;
+            Assert.True(server.IsSecure);
         }
 
-        [Test]
+        [Fact]
         public void ShouldDefaultToNoneWithWssAndCertificate()
         {
             var server = new WebSocketServer("wss://0.0.0.0:8000");
-            server.Certificate = new X509Certificate2();
-            Assert.AreEqual(server.EnabledSslProtocols, SslProtocols.None);
+            server.Certificate = cert;
+            Assert.Equal(SslProtocols.None, server.EnabledSslProtocols);
         }
 
-        [Test]
+        [Fact]
         public void ShouldNotBeSecureWithWssAndNoCertificate()
         {
             var server = new WebSocketServer("wss://0.0.0.0:8000");
-            Assert.IsFalse(server.IsSecure);
+            Assert.False(server.IsSecure);
         }
 
-        [Test]
+        [Fact]
         public void ShouldNotBeSecureWithoutWssAndCertificate()
         {
             var server = new WebSocketServer("ws://0.0.0.0:8000");
-            server.Certificate = new X509Certificate2();
-            Assert.IsFalse(server.IsSecure);
+            server.Certificate = cert;
+            Assert.False(server.IsSecure);
         }
 
-        [Test]
-        [Ignore("Fails for an unknown release, does the test host need IPv6?")]
-        public void ShouldSupportDualStackListenWhenServerV4All()
+        public void Dispose()
         {
-            _server = new WebSocketServer("ws://0.0.0.0:8000");
-            _server.Start(connection => { });
-            _ipV4Socket.Connect(_ipV4Address, 8000);
-            _ipV6Socket.Connect(_ipV6Address, 8000);
-        }
-
-#if __MonoCS__
-          // None
-#else
-
-        [Test]
-        public void ShouldSupportDualStackListenWhenServerV6All()
-        {
-            _server = new WebSocketServer("ws://[::]:8000");
-            _server.Start(connection => { });
-            _ipV4Socket.Connect(_ipV4Address, 8000);
-            _ipV6Socket.Connect(_ipV6Address, 8000);
-        }
-
-#endif
-
-        [TearDown]
-        public void TearDown()
-        {
-            _ipV4Socket.Dispose();
-            _ipV6Socket.Dispose();
             _server.Dispose();
         }
     }

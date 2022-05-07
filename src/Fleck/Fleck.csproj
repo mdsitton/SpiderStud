@@ -16,7 +16,6 @@
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="zstring" Version="2.4.4" />
-    <PackageReference Include="System.Runtime.CompilerServices.Unsafe" Version="4.7.0" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\BinaryEx\BinaryEx.csproj" />

@@ -1,17 +1,14 @@
 using System;
-using NUnit.Framework;
+using Xunit;
 using System.Text;
 using System.Collections.Generic;
-using System.Linq;
-using Fleck;
 
 namespace Fleck.Tests
 {
-    [TestFixture]
     public class DataFrameTests
     {
-        [Test]
-        public void ShouldConvertToBytes()
+        [Fact]
+        public void ShouldConvertToBytesUnmasked()
         {
             var Payload = Encoding.UTF8.GetBytes("Hello");
 
@@ -20,11 +17,24 @@ namespace Fleck.Tests
 
             var expected = new byte[] { 129, 5, 72, 101, 108, 108, 111 };
 
-            Assert.AreEqual(expected, actual);
+            Assert.Equal(expected, actual);
         }
 
+        [Fact]
+        public void ShouldConvertToBytesMasked()
+        {
+            var Payload = Encoding.UTF8.GetBytes("Hello");
 
-        [Test]
+            byte[] key = new byte[] { 61, 84, 35, 6 };
+            byte[] actual = new byte[11];
+            FrameParsing.WriteFrame(actual, Payload, FrameType.Text, key, true, true);
+
+            var expected = new byte[] { 129, 133, 61, 84, 35, 6, 117, 49, 79, 106, 82 };
+
+            Assert.Equal(expected, actual);
+        }
+
+        [Fact]
         public void ShouldConvertPayloadsOver125BytesToBytes()
         {
             var Payload = Encoding.UTF8.GetBytes(new string('x', 140));
@@ -37,67 +47,77 @@ namespace Fleck.Tests
 
             var expected = expectedBuild.ToArray();
 
-            Assert.AreEqual(expected, actual);
+            Assert.Equal(expected, actual);
         }
 
-        [Test]
+        [Fact]
         public void PayloadRoundTripUnmaskedTest()
         {
             string originalString = new string('x', 140);
             var Payload = Encoding.UTF8.GetBytes(originalString);
 
-            byte[] data = new byte[144];
+            byte[] data = new byte[256];
             FrameParsing.WriteFrame(data, Payload, FrameType.Text, true, false);
 
             var result = FrameParsing.ReadFrameHeader(data);
 
-            Assert.IsTrue(result.FrameHeaderFullyParsed);
-            Assert.IsTrue(result.PayloadReady);
+            Assert.True(result.FrameHeaderFullyParsed);
+            Assert.True(result.PayloadReady);
+            Assert.False(result.IsMasked);
+            Assert.Equal(4, result.PayloadStartOffset);
+            Assert.Equal(Payload.Length, result.PayloadLength);
 
-            Span<byte> payload = data.AsSpan().Slice(result.PayloadStartOffset);
+            Span<byte> payload = data.AsSpan().Slice(result.PayloadStartOffset, result.PayloadLength);
 
             string resultString = Encoding.UTF8.GetString(payload);
 
-            Assert.AreEqual(originalString, resultString);
+            Assert.Equal(originalString, resultString);
         }
 
-        [Test]
+        [Fact]
         public void PayloadRoundTripMaskedTest()
         {
-            string originalString = new string('x', 140);
+            string originalString = "Hello";
             var Payload = Encoding.UTF8.GetBytes(originalString);
 
-            byte[] data = new byte[144];
+            byte[] data = new byte[256];
             FrameParsing.WriteFrame(data, Payload, FrameType.Text, true, true);
 
             var result = FrameParsing.ReadFrameHeader(data);
 
-            Assert.IsTrue(result.FrameHeaderFullyParsed);
-            Assert.IsTrue(result.PayloadReady);
+            Assert.True(result.FrameHeaderFullyParsed);
+            Assert.True(result.PayloadReady);
+            Assert.True(result.IsMasked);
+            Assert.Equal(6, result.PayloadStartOffset);
+            Assert.Equal(Payload.Length, result.PayloadLength);
 
-            Span<byte> payload = data.AsSpan().Slice(result.PayloadStartOffset);
+            Span<byte> payload = data.AsSpan().Slice(result.PayloadStartOffset, result.PayloadLength);
+            FrameParsing.ApplyDataMasking(payload, payload, result.MaskKey); // Restore
 
             string resultString = Encoding.UTF8.GetString(payload);
 
-            Assert.AreEqual(originalString, resultString);
+            Assert.Equal(originalString, resultString);
         }
 
-        [Test]
+        [Fact]
         public void PayloadMaskingRoundTripTest()
         {
-            const string original = "Whoa";
+            const string original = "Hello";
 
-            byte[] key = new byte[] { 0x51, 0x14, 0x81, 0x5a };
+            byte[] key = new byte[] { 61, 84, 35, 6 };
 
             var bytes = Encoding.UTF8.GetBytes(original);
+            byte[] bytes2 = new byte[bytes.Length];
+            Array.Copy(bytes, bytes2, bytes.Length);
 
             // Transform data in place
-            FrameParsing.ApplyDataMasking(bytes, bytes, key); // Transform
-            FrameParsing.ApplyDataMasking(bytes, bytes, key); // Restore
+            FrameParsing.ApplyDataMasking(bytes2, bytes2, key); // Transform
+            Assert.NotEqual(bytes, bytes2);
+            FrameParsing.ApplyDataMasking(bytes2, bytes2, key); // Restore
 
-            var decoded = Encoding.UTF8.GetString(bytes);
+            // var decoded = Encoding.UTF8.GetString(bytes);
 
-            Assert.AreEqual(original, decoded);
+            Assert.Equal(bytes, bytes2);
         }
     }
 }

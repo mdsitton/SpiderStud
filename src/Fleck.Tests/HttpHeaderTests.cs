@@ -1,47 +1,46 @@
 using System.Diagnostics;
-using NUnit.Framework;
+using Xunit;
 using System.Text;
 
 namespace Fleck.Tests
 {
-    [TestFixture]
     public class HttpHeaderTests
     {
-        [Test]
+        [Fact]
         public void ShouldReturnNullForEmptyBytes()
         {
             WebSocketHttpRequest request = HttpHeader.Parse(new byte[0]);
 
-            Assert.IsNull(request);
+            Assert.Null(request);
         }
 
-        [Test]
+        [Fact]
         public void ShouldReadResourceLine()
         {
             WebSocketHttpRequest request = HttpHeader.Parse(ValidRequestArray());
 
-            Assert.AreEqual("GET", request.Method);
-            Assert.AreEqual("/demo", request.Path);
+            Assert.Equal("GET", request.Method);
+            Assert.Equal("/demo", request.Path);
         }
 
-        [Test]
+        [Fact]
         public void ShouldReadHeaders()
         {
             WebSocketHttpRequest request = HttpHeader.Parse(ValidRequestArray());
 
-            Assert.AreEqual("example.com", request.Headers["Host"]);
-            Assert.AreEqual("Upgrade", request.Headers["Connection"]);
-            Assert.AreEqual("12998 5 Y3 1  .P00", request.Headers["Sec-WebSocket-Key2"]);
-            Assert.AreEqual("http://example.com", request.Headers["Origin"]);
+            Assert.Equal("example.com", request.Headers["Host"]);
+            Assert.Equal("Upgrade", request.Headers["Connection"]);
+            Assert.Equal("12998 5 Y3 1  .P00", request.Headers["Sec-WebSocket-Key2"]);
+            Assert.Equal("http://example.com", request.Headers["Origin"]);
         }
 
-        [Test]
+        [Fact]
         public void ValidRequestShouldNotBeNull()
         {
             Assert.NotNull(HttpHeader.Parse(ValidRequestArray()));
         }
 
-        [Test]
+        [Fact]
         public void NoBodyRequestShouldNotBeNull()
         {
             const string noBodyRequest =
@@ -57,10 +56,10 @@ namespace Fleck.Tests
                 "";
             var bytes = RequestArray(noBodyRequest);
 
-            Assert.IsNotNull(HttpHeader.Parse(bytes));
+            Assert.NotNull(HttpHeader.Parse(bytes));
         }
 
-        [Test]
+        [Fact]
         public void NoHeadersRequestShouldBeNull()
         {
             const string noHeadersNoBodyRequest =
@@ -69,22 +68,22 @@ namespace Fleck.Tests
                 "";
             var bytes = RequestArray(noHeadersNoBodyRequest);
 
-            Assert.IsNull(HttpHeader.Parse(bytes));
+            Assert.Null(HttpHeader.Parse(bytes));
         }
 
-        [Test]
+        [Fact]
         public void HeadersShouldBeCaseInsensitive()
         {
             WebSocketHttpRequest request = HttpHeader.Parse(ValidRequestArray());
 
-            Assert.IsTrue(request.Headers.ContainsKey("Sec-WebSocket-Protocol"));
-            Assert.IsTrue(request.Headers.ContainsKey("sec-websocket-protocol"));
-            Assert.IsTrue(request.Headers.ContainsKey("sec-WEBsocket-protoCOL"));
-            Assert.IsTrue(request.Headers.ContainsKey("UPGRADE"));
-            Assert.IsTrue(request.Headers.ContainsKey("CONNectiON"));
+            Assert.True(request.Headers.ContainsKey("Sec-WebSocket-Protocol"));
+            Assert.True(request.Headers.ContainsKey("sec-websocket-protocol"));
+            Assert.True(request.Headers.ContainsKey("sec-WEBsocket-protoCOL"));
+            Assert.True(request.Headers.ContainsKey("UPGRADE"));
+            Assert.True(request.Headers.ContainsKey("CONNectiON"));
         }
 
-        [Test]
+        [Fact]
         public void PartialHeaderRequestShouldNotBeIncluded()
         {
             const string partialHeaderRequest =
@@ -97,12 +96,12 @@ namespace Fleck.Tests
                 "Sec-WebSoc"; //Cut off
             var bytes = RequestArray(partialHeaderRequest);
             var request = HttpHeader.Parse(bytes);
-            Assert.IsNotNull(request);
-            Assert.IsTrue(request.Headers.ContainsKey("Upgrade"));
-            Assert.IsFalse(request.Headers.ContainsKey("Sec-WebSoc"));
+            Assert.NotNull(request);
+            Assert.True(request.Headers.ContainsKey("Upgrade"));
+            Assert.False(request.Headers.ContainsKey("Sec-WebSoc"));
         }
 
-        [Test]
+        [Fact]
         public void EmptyHeaderValuesShouldParse()
         {
             const string emptyCookieRequest =
@@ -120,11 +119,11 @@ namespace Fleck.Tests
                 "^n:ds[4U";
             var bytes = RequestArray(emptyCookieRequest);
             var request = HttpHeader.Parse(bytes);
-            Assert.IsNotNull(request);
-            Assert.AreEqual("", request.Headers["Cookie"]);
+            Assert.NotNull(request);
+            Assert.Equal("", request.Headers["Cookie"]);
         }
 
-        [Test]
+        [Fact]
         public void RunTimeOfParseRequestWithLargeCookie()
         {
             var watch = new Stopwatch();
@@ -136,11 +135,11 @@ namespace Fleck.Tests
                 var parsed = HttpHeader.Parse(bytes);
                 watch.Stop();
 
-                Assert.IsNotNull(parsed);
-                Assert.AreEqual(11, parsed.Headers.Count);
+                Assert.NotNull(parsed);
+                Assert.Equal(11, parsed.Headers.Count);
             }
 
-            Assert.Less(watch.Elapsed.TotalSeconds, 50.0 / 1000);
+            Assert.InRange(watch.Elapsed.TotalSeconds, 0, 50.0 / 1000);
         }
 
         public byte[] ValidRequestArray()

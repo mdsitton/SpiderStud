@@ -11,9 +11,10 @@ using Fleck.Helpers;
 
 namespace Fleck
 {
-    public class SslSocket
+
+    public class SslSocket : ISocket
     {
-        private readonly Socket socket;
+        private Socket socket;
         private readonly CancellationTokenSource tokenSource;
         private readonly SslServerAuthenticationOptions authenticationOptions;
         private Stream stream;
@@ -29,29 +30,53 @@ namespace Fleck
         public bool Connected => socket.Connected;
         public int BytesAvailable => socket.Available;
 
+        private bool isManaged = false;
+        private readonly IPAddress? managedAddress;
+        private readonly bool managedIsDualStack;
+
         public bool NoDelay
         {
             get => socket.NoDelay;
             set => socket.NoDelay = value;
         }
 
+        public SslSocket(IPAddress address, bool dualStack = true) : this(CreateSocket(address, dualStack))
+        {
+            isManaged = true;
+            managedAddress = address;
+            managedIsDualStack = dualStack;
+        }
+
         public SslSocket(Socket socket)
         {
-            if (socket.Connected)
-                throw new ConnectionNotAvailableException("Socket connection not available");
-
             this.socket = socket;
             tokenSource = new CancellationTokenSource();
 
-            stream = new NetworkStream(this.socket);
+            if (socket.Connected)
+                stream = new NetworkStream(this.socket);
             authenticationOptions = new SslServerAuthenticationOptions();
 
             authenticationOptions.CertificateRevocationCheckMode = X509RevocationMode.NoCheck;
             authenticationOptions.ClientCertificateRequired = false;
+        }
 
+        private static Socket CreateSocket(IPAddress address, bool dualStack)
+        {
+            var socket = new Socket(address.AddressFamily, SocketType.Stream, ProtocolType.IP);
+
+            socket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, 1);
+
+            if (dualStack)
+            {
+                if (!FleckRuntime.IsRunningOnMono() && FleckRuntime.IsRunningOnWindows())
+                {
+                    socket.SetSocketOption(SocketOptionLevel.IPv6, SocketOptionName.IPv6Only, false);
+                }
+            }
             // The tcp keepalive default values on most systems
             // are huge (~7200s). Set them to something more reasonable.
             socket.SetKeepAlive();
+            return socket;
         }
 
         public void Authenticate(X509Certificate2 certificate, SslProtocols enabledSslProtocols)
@@ -105,7 +130,7 @@ namespace Fleck
             return stream.WriteAsync(data, tokenSource.Token);
         }
 
-        public SslSocket Accept()
+        public ISocket Accept()
         {
             Socket clientSocket = socket.Accept();
             var sockWrap = new SslSocket(clientSocket);
@@ -117,6 +142,22 @@ namespace Fleck
             Socket clientSocket = await socket.AcceptAsync();
             var sockWrap = new SslSocket(clientSocket);
             return sockWrap;
+        }
+
+        public bool Restart()
+        {
+            if (!isManaged)
+            {
+                throw new NotSupportedException("Cannot restart a socket not managed by SslSocket");
+            }
+
+            if (managedAddress != null)
+            {
+                Dispose();
+                socket = CreateSocket(managedAddress, managedIsDualStack);
+                return true;
+            }
+            return false;
         }
 
         public void Dispose()

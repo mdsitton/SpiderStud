@@ -7,7 +7,7 @@ namespace Fleck
 {
     public interface IWebSocketClientHandler
     {
-        void OnConfig(IWebSocketConnection connection);
+        void OnConfig(WebSocketServer server, IWebSocketConnection connection);
         void OnError(Exception e);
         void OnOpen();
         void OnClose();

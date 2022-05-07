@@ -9,22 +9,21 @@ using System.Threading.Tasks;
 
 namespace Fleck
 {
+    // public delegate IWebSocketClientHandlerAsync AsyncClientHandlerFactory();
+
     public partial class WebSocketServer
     {
+        // AsyncClientHandlerFactory? clientHandlerAsyncFactory;
 
-        public async Task StartAsync()
+        public async Task StartAsync(ClientHandlerFactory clientHandler)
         {
             var ipLocal = new IPEndPoint(locationIP, Port);
-            ListenerSocket.Bind(ipLocal);
-            ListenerSocket.Listen(100);
-            Port = ((IPEndPoint)ListenerSocket.LocalEndPoint).Port;
+            clientHandlerFactory = clientHandler;
+            StartSocket();
             FleckLog.Info($"Server started at {Location} (actual port {Port})");
-            if (scheme == "wss")
+            if (scheme == "wss" && Certificate == null)
             {
-                if (Certificate == null)
-                {
-                    throw new InvalidOperationException("Scheme cannot be 'wss' without a Certificate");
-                }
+                throw new InvalidOperationException("Scheme cannot be 'wss' without a Certificate");
             }
             await ListenForClientsAsync();
         }
@@ -40,23 +39,7 @@ namespace Fleck
                 }
                 catch (ObjectDisposedException e)
                 {
-                    FleckLog.Error("Listener socket is closed", e);
-                    if (RestartAfterListenError)
-                    {
-                        FleckLog.Info("Listener socket restarting");
-                        try
-                        {
-                            ListenerSocket.Dispose();
-                            var socket = new Socket(locationIP.AddressFamily, SocketType.Stream, ProtocolType.IP);
-                            ListenerSocket = new SslSocket(socket);
-                            Start();
-                            FleckLog.Info("Listener socket restarted");
-                        }
-                        catch (Exception ex)
-                        {
-                            FleckLog.Error("Listener could not be restarted", ex);
-                        }
-                    }
+                    TryRecoverSocket(e);
                 }
             }
         }
@@ -67,7 +50,12 @@ namespace Fleck
 
             FleckLog.Debug($"Client connected from {clientSocket.RemoteIpAddress}:{clientSocket.RemotePort}");
 
-            var connection = new WebSocketConnection(clientSocket, clientHandlerFactory());
+            if (clientHandlerFactory == null)
+            {
+                throw new InvalidOperationException("Error server not properly initialized");
+            }
+            // TODO - implement async WebSocketConnection
+            var connection = new WebSocketConnection(clientSocket, this, clientHandlerFactory());
 
             if (IsSecure)
             {

@@ -9,6 +9,6 @@ namespace Fleck
 
         public string Path { get; set; } = String.Empty;
 
-        public IDictionary<string, string> Headers { get; } = new Dictionary<string, string>(StringComparer.InvariantCultureIgnoreCase);
+        public Dictionary<string, string> Headers { get; } = new Dictionary<string, string>(StringComparer.InvariantCultureIgnoreCase);
     }
 }

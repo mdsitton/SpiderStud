@@ -11,15 +11,15 @@ namespace Fleck
 {
     public delegate IWebSocketClientHandler ClientHandlerFactory();
 
-    public partial class WebSocketServer
+    public partial class WebSocketServer : IDisposable
     {
         private readonly string scheme;
         private readonly IPAddress locationIP;
-        private readonly ClientHandlerFactory clientHandlerFactory;
+        private ClientHandlerFactory? clientHandlerFactory;
         private Thread? clientConnectionThread = null;
         private Thread? clientReceiveThread = null;
 
-        public SslSocket ListenerSocket { get; set; }
+        public ISocket ListenerSocket { get; set; }
         public string Location { get; }
         public bool SupportDualStack { get; }
         public int Port { get; private set; }
@@ -29,36 +29,36 @@ namespace Fleck
 
         public bool IsSecure => scheme == "wss" && Certificate != null;
 
-        List<WebSocketConnection> activeConnections = new List<WebSocketConnection>();
+        readonly List<WebSocketConnection> activeConnections = new List<WebSocketConnection>();
 
-        public WebSocketServer(string location, ClientHandlerFactory clientHandlerFactory, bool supportDualStack = true)
+        public WebSocketServer(string location, bool supportDualStack = true)
         {
             var uri = new Uri(location);
-
             Port = uri.Port;
-            Location = location;
-            this.clientHandlerFactory = clientHandlerFactory;
-            SupportDualStack = supportDualStack;
-
             locationIP = ParseIPAddress(uri);
             scheme = uri.Scheme;
-            var socket = new Socket(locationIP.AddressFamily, SocketType.Stream, ProtocolType.IP);
 
-            socket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, 1);
+            Location = location;
+            SupportDualStack = supportDualStack;
+            ListenerSocket = new SslSocket(locationIP);
+        }
 
-            if (SupportDualStack)
-            {
-                if (!FleckRuntime.IsRunningOnMono() && FleckRuntime.IsRunningOnWindows())
-                {
-                    socket.SetSocketOption(SocketOptionLevel.IPv6, SocketOptionName.IPv6Only, false);
-                }
-            }
+        public WebSocketServer(string location, ISocket socket, bool supportDualStack = true)
+        {
+            Location = location;
+            SupportDualStack = supportDualStack;
+            ListenerSocket = socket;
 
-            ListenerSocket = new SslSocket(socket);
+            var uri = new Uri(location);
+            Port = uri.Port;
+            locationIP = ParseIPAddress(uri);
+            scheme = uri.Scheme;
         }
 
         public void Dispose()
         {
+            clientReceiveRunning = false;
+            clientConnectRunning = false;
             ListenerSocket.Dispose();
         }
 
@@ -82,21 +82,52 @@ namespace Fleck
             }
         }
 
-        public void Start()
+        public void StartSocket()
         {
             var ipLocal = new IPEndPoint(locationIP, Port);
             ListenerSocket.Bind(ipLocal);
             ListenerSocket.Listen(100);
             Port = ((IPEndPoint)ListenerSocket.LocalEndPoint).Port;
-            FleckLog.Info($"Server started at {Location} (actual port {Port})");
-            if (scheme == "wss")
+        }
+
+        private void TryRecoverSocket(Exception e)
+        {
+            FleckLog.Error("Listener socket is closed", e);
+            if (RestartAfterListenError)
             {
-                if (Certificate == null)
+                FleckLog.Info("Listener socket restarting");
+                try
                 {
-                    FleckLog.Error("Scheme cannot be 'wss' without a Certificate");
-                    return;
+                    if (ListenerSocket.Restart())
+                    {
+                        StartSocket();
+                        FleckLog.Info("Listener socket restarted");
+                    }
+                    else
+                    {
+                        FleckLog.Error("Listener socket failed to restart");
+                        throw e;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    FleckLog.Error("Listener could not be restarted", ex);
                 }
             }
+        }
+
+        // public void Start<T>() where T : IWebSocketClientHandler
+        public void Start(ClientHandlerFactory clientHandlerFactory)
+        {
+            this.clientHandlerFactory = clientHandlerFactory;
+            StartSocket();
+            FleckLog.Info($"Server started at {Location} (actual port {Port})");
+
+            if (scheme == "wss" && Certificate == null)
+            {
+                throw new InvalidOperationException("Scheme cannot be 'wss' without a Certificate");
+            }
+
             if (clientConnectionThread == null)
             {
                 clientConnectionThread = new Thread(ClientConnectionThread);
@@ -110,13 +141,18 @@ namespace Fleck
             }
         }
 
-        private void OnClientConnect(SslSocket clientSocket)
+        private void OnClientConnect(ISocket clientSocket)
         {
             if (clientSocket == null) return; // socket closed
 
             FleckLog.Debug($"Client connected from {clientSocket.RemoteIpAddress}:{clientSocket.RemotePort}");
 
-            var connection = new WebSocketConnection(clientSocket, clientHandlerFactory());
+            if (clientHandlerFactory == null)
+            {
+                throw new InvalidOperationException("Error server not properly initialized");
+            }
+
+            var connection = new WebSocketConnection(clientSocket, this, clientHandlerFactory());
 
             lock (activeConnections)
             {
@@ -185,23 +221,7 @@ namespace Fleck
                 }
                 catch (Exception e)
                 {
-                    FleckLog.Error("Listener socket is closed", e);
-                    if (RestartAfterListenError)
-                    {
-                        FleckLog.Info("Listener socket restarting");
-                        try
-                        {
-                            ListenerSocket.Dispose();
-                            var socket = new Socket(locationIP.AddressFamily, SocketType.Stream, ProtocolType.IP);
-                            ListenerSocket = new SslSocket(socket);
-                            Start();
-                            FleckLog.Info("Listener socket restarted");
-                        }
-                        catch (Exception ex)
-                        {
-                            FleckLog.Error("Listener could not be restarted", ex);
-                        }
-                    }
+                    TryRecoverSocket(e);
                 }
             }
         }
