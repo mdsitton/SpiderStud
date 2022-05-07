@@ -15,7 +15,7 @@ namespace Fleck
         public ReadOnlySpan<byte> MaskKey;
         public int PayloadLength;
         public int PayloadStartOffset;
-        public ushort ErrorCode;
+        public StatusCode ErrorCode;
     }
 
     internal class FrameParsing
@@ -122,7 +122,7 @@ namespace Fleck
 
             if (!result.FrameType.IsDefined() || result.ReservedBits != 0)
             {
-                result.ErrorCode = WebSocketStatusCodes.ProtocolError;
+                result.ErrorCode = StatusCode.ProtocolError;
                 return result;
             }
 
@@ -140,7 +140,7 @@ namespace Fleck
                 // So we need to close the connection if this occurs
                 if (longLength > (Int32.MaxValue - index + 4))
                 {
-                    result.ErrorCode = WebSocketStatusCodes.MessageTooBig;
+                    result.ErrorCode = StatusCode.MessageTooBig;
                     return result;
                 }
                 result.PayloadLength = (int)longLength;
