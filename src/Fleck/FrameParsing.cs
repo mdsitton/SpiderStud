@@ -88,7 +88,7 @@ namespace Fleck
             return pos;
         }
 
-        private static unsafe void ApplyDataMasking(ReadOnlySpan<byte> dataIn, Span<byte> dataOut, Span<byte> maskKey)
+        internal static void ApplyDataMasking(ReadOnlySpan<byte> dataIn, Span<byte> dataOut, Span<byte> maskKey)
         {
             for (var i = 0; i < dataIn.Length; i++)
             {
