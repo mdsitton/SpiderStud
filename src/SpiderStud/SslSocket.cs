@@ -7,9 +7,9 @@ using System.Security.Authentication;
 using System.Security.Cryptography.X509Certificates;
 using System.Threading.Tasks;
 using System.Threading;
-using Fleck.Helpers;
+using SpiderStud.Helpers;
 
-namespace Fleck
+namespace SpiderStud
 {
 
     public class SslSocket : ISocket
@@ -68,7 +68,7 @@ namespace Fleck
 
             if (dualStack)
             {
-                if (!FleckRuntime.IsRunningOnMono() && FleckRuntime.IsRunningOnWindows())
+                if (!SpiderStudRuntime.IsRunningOnMono() && SpiderStudRuntime.IsRunningOnWindows())
                 {
                     socket.SetSocketOption(SocketOptionLevel.IPv6, SocketOptionName.IPv6Only, false);
                 }

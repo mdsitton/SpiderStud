@@ -5,7 +5,7 @@ using System.Net.Sockets;
 using System.Buffers.Binary;
 using BinaryEx;
 
-namespace Fleck.Helpers
+namespace SpiderStud.Helpers
 {
     internal static class SocketExtensions
     {
@@ -30,7 +30,7 @@ namespace Fleck.Helpers
 
             // The tcp keepalive default values on most systems
             // are huge (~7200s). Set them to something more reasonable.
-            if (FleckRuntime.IsRunningOnWindows())
+            if (SpiderStudRuntime.IsRunningOnWindows())
                 socket.IOControl(IOControlCode.KeepAliveValues, scratchBytes, null);
         }
 

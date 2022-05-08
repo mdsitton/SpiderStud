@@ -4,7 +4,7 @@ using System.Linq;
 using System.Threading;
 using System.Text;
 
-namespace Fleck.Samples.ConsoleApp
+namespace SpiderStud.Samples.ConsoleApp
 {
     class ClientHandler : IWebSocketClientHandler
     {
@@ -58,7 +58,7 @@ namespace Fleck.Samples.ConsoleApp
     {
         static void Main()
         {
-            FleckLog.Level = LogLevel.Debug;
+            SpiderStudLog.Level = LogLevel.Debug;
             var allSockets = new List<IWebSocketConnection>();
             var server = new WebSocketServer("ws://0.0.0.0:8181");
             server.Start(ClientHandler.Create);

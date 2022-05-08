@@ -6,7 +6,7 @@ using System.Text.RegularExpressions;
 using System.Threading;
 using Cysharp.Text;
 
-namespace Fleck
+namespace SpiderStud
 {
     public static class HttpHeader
     {
@@ -31,7 +31,7 @@ namespace Fleck
 
         internal static ReadOnlySpan<byte> CreateHandshake(WebSocketHttpRequest request)
         {
-            FleckLog.Debug("Building Hybi-14 Response");
+            SpiderStudLog.Debug("Building Hybi-14 Response");
             zBuilder.Clear();
 
             zBuilder.Append("HTTP/1.1 101 Switching Protocols\r\n");

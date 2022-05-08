@@ -2,7 +2,7 @@ using System.Diagnostics;
 using Xunit;
 using System.Text;
 
-namespace Fleck.Tests
+namespace SpiderStud.Tests
 {
     public class HttpHeaderTests
     {

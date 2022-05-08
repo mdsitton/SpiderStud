@@ -2,7 +2,7 @@ using System;
 using System.Security.Cryptography;
 using BinaryEx;
 
-namespace Fleck
+namespace SpiderStud
 {
     internal ref struct FrameReadState
     {

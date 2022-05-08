@@ -1,6 +1,6 @@
 using System;
 
-namespace Fleck
+namespace SpiderStud
 {
     public enum StatusCode : ushort
     {

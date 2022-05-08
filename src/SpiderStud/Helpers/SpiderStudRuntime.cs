@@ -1,9 +1,9 @@
 ﻿using System;
 using System.Runtime.InteropServices;
 
-namespace Fleck.Helpers
+namespace SpiderStud.Helpers
 {
-    internal static class FleckRuntime
+    internal static class SpiderStudRuntime
     {
         public static bool IsRunningOnMono()
         {

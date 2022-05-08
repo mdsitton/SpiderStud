@@ -3,11 +3,11 @@ using System.Net;
 using System.Net.Sockets;
 using System.Security.Cryptography.X509Certificates;
 using System.Security.Authentication;
-using Fleck.Helpers;
+using SpiderStud.Helpers;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace Fleck
+namespace SpiderStud
 {
     // public delegate IWebSocketClientHandlerAsync AsyncClientHandlerFactory();
 
@@ -20,7 +20,7 @@ namespace Fleck
             var ipLocal = new IPEndPoint(locationIP, Port);
             clientHandlerFactory = clientHandler;
             StartSocket();
-            FleckLog.Info($"Server started at {Location} (actual port {Port})");
+            SpiderStudLog.Info($"Server started at {Location} (actual port {Port})");
             if (scheme == "wss" && Certificate == null)
             {
                 throw new InvalidOperationException("Scheme cannot be 'wss' without a Certificate");
@@ -48,7 +48,7 @@ namespace Fleck
         {
             if (clientSocket == null) return; // socket closed
 
-            FleckLog.Debug($"Client connected from {clientSocket.RemoteIpAddress}:{clientSocket.RemotePort}");
+            SpiderStudLog.Debug($"Client connected from {clientSocket.RemoteIpAddress}:{clientSocket.RemotePort}");
 
             if (clientHandlerFactory == null)
             {
@@ -64,7 +64,7 @@ namespace Fleck
                     throw new InvalidOperationException("Secure WebSocket must have certificates defined");
                 }
 
-                FleckLog.Debug("Authenticating Secure Connection");
+                SpiderStudLog.Debug("Authenticating Secure Connection");
                 try
                 {
                     await clientSocket.AuthenticateAsync(Certificate, EnabledSslProtocols);
@@ -73,7 +73,7 @@ namespace Fleck
                 }
                 catch (Exception e)
                 {
-                    FleckLog.Warn("Failed to Authenticate", e);
+                    SpiderStudLog.Warn("Failed to Authenticate", e);
                 }
             }
             else

@@ -6,7 +6,7 @@ using System.Security.Authentication;
 using System.Security.Cryptography.X509Certificates;
 using System.Threading.Tasks;
 
-namespace Fleck
+namespace SpiderStud
 {
     public interface ISocket
     {

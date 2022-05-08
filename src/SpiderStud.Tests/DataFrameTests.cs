@@ -3,7 +3,7 @@ using Xunit;
 using System.Text;
 using System.Collections.Generic;
 
-namespace Fleck.Tests
+namespace SpiderStud.Tests
 {
     public class DataFrameTests
     {
