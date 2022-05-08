@@ -5,11 +5,11 @@ SpiderStud is a WebSocket server implementation in C#.
 
 This project started out as a fork of [Facepunch/Fleck](https://github.com/facepunch/Fleck) an optimized fork of fleck. Fleck itself started as a fork of the now defunct Nugget project.
 
-However this project has since significantly dirverged from the original Fleck project and because of that has been renamed to SpiderStud. The name SpiderStud is a play on the word WebSocket.
+However this project has since significantly diverged from the original Fleck project and because of that has been renamed to SpiderStud. The name SpiderStud is a play on the word WebSocket.
 
-The goal of this project is to have an extremely low/no allocation websocket server for use in games or other allocation sensitive environments. 
+The goal of this project is to have an extremely low/no allocation websocket server for use in games or other allocation sensitive environments. It also uses more modern .net features and is targeting .net standard 2.1, the async server implementation uses async await instead of older style ContinueWith() style code.
 
-Unlike Fleck, SpiderStud uses a class implementing the IWebSocketClientHandler interface for callbacks instead of delegates. This is so you can easily implement multiple different message handlers for different api endpoints.
+Unlike Fleck, SpiderStud uses a class implementing the IWebSocketClientHandler interface for callbacks instead of delegates. This is so you can easily implement multiple different message handlers for different api endpoints. Though and api has not yet been implemented for this.
 This model is much closer to the original Nugget library than Fleck is.
 
 Another goal is full websocket standards complience so along with that this fork removes all of the draft standards implementations, as the current standard has been in place since 2011 and is unlikely to see major changes as http2 and http3 fill many similar roles as websockets do these days.
