@@ -51,6 +51,30 @@ namespace Fleck.Tests
         }
 
         [Fact]
+        public void PayloadRoundTripLongTest()
+        {
+            string originalString = new string('x', 131070);
+            var Payload = Encoding.UTF8.GetBytes(originalString);
+
+            byte[] data = new byte[131080];
+            FrameParsing.WriteFrame(data, Payload, FrameType.Text, true, false);
+
+            var result = FrameParsing.ReadFrameHeader(data);
+
+            Assert.True(result.FrameHeaderFullyParsed);
+            Assert.True(result.PayloadReady);
+            Assert.False(result.IsMasked);
+            Assert.Equal(10, result.PayloadStartOffset);
+            Assert.Equal(Payload.Length, result.PayloadLength);
+
+            Span<byte> payload = data.AsSpan().Slice(result.PayloadStartOffset, result.PayloadLength);
+
+            string resultString = Encoding.UTF8.GetString(payload);
+
+            Assert.Equal(originalString, resultString);
+        }
+
+        [Fact]
         public void PayloadRoundTripUnmaskedTest()
         {
             string originalString = new string('x', 140);
