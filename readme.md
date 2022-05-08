@@ -16,6 +16,8 @@ Another goal is full websocket standards complience so along with that this fork
 
 I am planning on validating the implementation against the [autobahn test suite](https://github.com/crossbario/autobahn-testsuite) once complete
 
+This websocket server was written for use in a future update of the the free rhythm game [Clone Hero](https://clonehero.net/)
+
 Example
 ---
 
