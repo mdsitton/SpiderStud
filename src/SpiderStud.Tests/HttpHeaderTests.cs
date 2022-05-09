@@ -10,7 +10,7 @@ namespace SpiderStud.Tests
         [Fact]
         public void ShouldReturnNullForEmptyBytes()
         {
-            HttpRequest request = HttpHeader.Parse(new byte[0]);
+            HttpRequest request = WebSocketHandshake.Parse(new byte[0]);
 
             Assert.Null(request);
         }
@@ -18,7 +18,7 @@ namespace SpiderStud.Tests
         [Fact]
         public void ShouldReadResourceLine()
         {
-            HttpRequest request = HttpHeader.Parse(ValidRequestArray());
+            HttpRequest request = WebSocketHandshake.Parse(ValidRequestArray());
 
             Assert.Equal("GET", request.Method);
             Assert.Equal("/demo", request.Path);
@@ -27,7 +27,7 @@ namespace SpiderStud.Tests
         [Fact]
         public void ShouldReadHeaders()
         {
-            HttpRequest request = HttpHeader.Parse(ValidRequestArray());
+            HttpRequest request = WebSocketHandshake.Parse(ValidRequestArray());
 
             Assert.Equal("example.com", request.Headers["Host"]);
             Assert.Equal("Upgrade", request.Headers["Connection"]);
@@ -38,7 +38,7 @@ namespace SpiderStud.Tests
         [Fact]
         public void ValidRequestShouldNotBeNull()
         {
-            Assert.NotNull(HttpHeader.Parse(ValidRequestArray()));
+            Assert.NotNull(WebSocketHandshake.Parse(ValidRequestArray()));
         }
 
         [Fact]
@@ -57,7 +57,7 @@ namespace SpiderStud.Tests
                 "";
             var bytes = RequestArray(noBodyRequest);
 
-            Assert.NotNull(HttpHeader.Parse(bytes));
+            Assert.NotNull(WebSocketHandshake.Parse(bytes));
         }
 
         [Fact]
@@ -69,13 +69,13 @@ namespace SpiderStud.Tests
                 "";
             var bytes = RequestArray(noHeadersNoBodyRequest);
 
-            Assert.Null(HttpHeader.Parse(bytes));
+            Assert.Null(WebSocketHandshake.Parse(bytes));
         }
 
         [Fact]
         public void HeadersShouldBeCaseInsensitive()
         {
-            HttpRequest request = HttpHeader.Parse(ValidRequestArray());
+            HttpRequest request = WebSocketHandshake.Parse(ValidRequestArray());
 
             Assert.True(request.Headers.ContainsKey("Sec-WebSocket-Protocol"));
             Assert.True(request.Headers.ContainsKey("sec-websocket-protocol"));
@@ -96,7 +96,7 @@ namespace SpiderStud.Tests
                 "Upgrade: WebSocket\r\n" +
                 "Sec-WebSoc"; //Cut off
             var bytes = RequestArray(partialHeaderRequest);
-            var request = HttpHeader.Parse(bytes);
+            var request = WebSocketHandshake.Parse(bytes);
             Assert.NotNull(request);
             Assert.True(request.Headers.ContainsKey("Upgrade"));
             Assert.False(request.Headers.ContainsKey("Sec-WebSoc"));
@@ -119,7 +119,7 @@ namespace SpiderStud.Tests
                 "\r\n" +
                 "^n:ds[4U";
             var bytes = RequestArray(emptyCookieRequest);
-            var request = HttpHeader.Parse(bytes);
+            var request = WebSocketHandshake.Parse(bytes);
             Assert.NotNull(request);
             Assert.Equal("", request.Headers["Cookie"]);
         }
@@ -133,7 +133,7 @@ namespace SpiderStud.Tests
             {
                 var bytes = RequestArray(requestWithLargeCookie);
                 watch.Start();
-                var parsed = HttpHeader.Parse(bytes);
+                var parsed = WebSocketHandshake.Parse(bytes);
                 watch.Stop();
 
                 Assert.NotNull(parsed);

@@ -6,16 +6,17 @@ using System.Security.Authentication;
 using SpiderStud.Helpers;
 using System.Threading;
 using System.Collections.Generic;
+using SpiderStud.Http;
 
 namespace SpiderStud
 {
     public delegate IWebSocketServiceHandler ClientHandlerFactory();
+    public delegate IHttpServiceHandler HttpHandlerFactory();
 
     public partial class WebSocketServer : IDisposable
     {
         private readonly string scheme;
         private readonly IPAddress locationIP;
-        private ClientHandlerFactory? clientHandlerFactory;
         private Thread? clientConnectionThread = null;
         private Thread? clientReceiveThread = null;
 
@@ -30,6 +31,8 @@ namespace SpiderStud
         public bool IsSecure => scheme == "wss" && Certificate != null;
 
         readonly List<WebSocketConnection> activeConnections = new List<WebSocketConnection>();
+
+        readonly Dictionary<string, ClientHandlerFactory> endpointFactories = new Dictionary<string, ClientHandlerFactory>();
 
         public WebSocketServer(string location, bool supportDualStack = true)
         {
@@ -82,12 +85,16 @@ namespace SpiderStud
             }
         }
 
-        public void StartSocket()
+        private void StartSocket()
         {
             var ipLocal = new IPEndPoint(locationIP, Port);
             ListenerSocket.Bind(ipLocal);
             ListenerSocket.Listen(100);
-            Port = ((IPEndPoint)ListenerSocket.LocalEndPoint).Port;
+
+            if (ListenerSocket.LocalEndPoint != null)
+            {
+                Port = ListenerSocket.LocalEndPoint.Port;
+            }
         }
 
         private void TryRecoverSocket(Exception e)
@@ -116,17 +123,26 @@ namespace SpiderStud
             }
         }
 
-        // public void Start<T>() where T : IWebSocketClientHandler
-        public void Start(ClientHandlerFactory clientHandlerFactory)
+        public void WsService(string resource, ClientHandlerFactory clientHandlerFactory)
         {
-            this.clientHandlerFactory = clientHandlerFactory;
-            StartSocket();
-            SpiderStudLog.Info($"Server started at {Location} (actual port {Port})");
+            endpointFactories[resource] = clientHandlerFactory;
+        }
 
+        // public void HttpService(string resource, HttpHandlerFactory clientHandlerFactory)
+        // {
+        //     endpointFactories[resource] = clientHandlerFactory;
+        // }
+
+        public void Start()
+        {
             if (scheme == "wss" && Certificate == null)
             {
                 throw new InvalidOperationException("Scheme cannot be 'wss' without a Certificate");
             }
+
+            StartSocket();
+            SpiderStudLog.Info($"Server started at {Location} (actual port {Port})");
+
 
             if (clientConnectionThread == null)
             {

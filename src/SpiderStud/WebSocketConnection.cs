@@ -14,22 +14,22 @@ namespace SpiderStud
         private const int ReadSize = 8 * 1024;
 
         public ISocket Socket { get; set; }
+        public WebSocketServer Server { get; }
         public IWebSocketConnectionInfo? ConnectionInfo { get; private set; }
         public bool IsAvailable => !closing && !closed && Socket.Connected;
 
-        public IWebSocketServiceHandler DataHandler { get; private set; }
+        public IWebSocketServiceHandler? DataHandler { get; private set; }
         private byte[] receiveBuffer;
         private int receiveOffset;
         private bool closing;
         private bool closed;
         private bool handshakeCompleted = false;
 
-        public WebSocketConnection(ISocket socket, WebSocketServer server, IWebSocketServiceHandler dataHandler)
+        public WebSocketConnection(ISocket socket, WebSocketServer server)
         {
             Socket = socket;
-            DataHandler = dataHandler;
+            Server = server;
             receiveBuffer = ArrayPool<byte>.Shared.Rent(ReadSize);
-            dataHandler.OnConfig(server, this);
         }
 
         const int MaxStackLimit = 1024;
@@ -120,7 +120,9 @@ namespace SpiderStud
 
         public bool CreateHandler(ReadOnlySpan<byte> data)
         {
-            var request = HttpHeader.Parse(data);
+            var request = WebSocketHandshake.Parse(data);
+            // DataHandler = dataHandler;
+            // dataHandler.OnConfig(server, this);
             if (request == null)
                 return false;
 
@@ -140,7 +142,7 @@ namespace SpiderStud
 
             ConnectionInfo = WebSocketConnectionInfo.Create(request, ip, port.Value);
 
-            var handshake = HttpHeader.CreateHandshake(request);
+            var handshake = WebSocketHandshake.CreateHandshake(request);
             if (SendBytes(handshake))
             {
                 DataHandler.OnOpen();

@@ -14,6 +14,7 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
   <ItemGroup>
+    <PackageReference Include="FastEnum" Version="1.7.0" />
     <PackageReference Include="zstring" Version="2.4.4" />
   </ItemGroup>
   <ItemGroup>

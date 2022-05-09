@@ -10,8 +10,8 @@ namespace SpiderStud
 {
     public interface ISocket
     {
-        EndPoint LocalEndPoint { get; }
-        EndPoint RemoteEndPoint { get; }
+        IPEndPoint? LocalEndPoint { get; }
+        IPEndPoint? RemoteEndPoint { get; }
         IPAddress? RemoteIpAddress { get; }
         int? RemotePort { get; }
         IPAddress? LocalIpAddress { get; }
@@ -24,7 +24,7 @@ namespace SpiderStud
         ValueTask<SslSocket> AcceptAsync();
         void Authenticate(X509Certificate2 certificate, SslProtocols enabledSslProtocols);
         Task AuthenticateAsync(X509Certificate2 certificate, SslProtocols enabledSslProtocols);
-        void Bind(EndPoint endPoint);
+        void Bind(IPEndPoint endPoint);
         void Close();
         void Dispose();
         bool Restart();

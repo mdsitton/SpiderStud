@@ -19,8 +19,8 @@ namespace SpiderStud
         private readonly SslServerAuthenticationOptions authenticationOptions;
         private Stream stream;
 
-        public EndPoint LocalEndPoint => socket.LocalEndPoint;
-        public EndPoint RemoteEndPoint => socket.RemoteEndPoint;
+        public IPEndPoint? LocalEndPoint => socket.LocalEndPoint as IPEndPoint;
+        public IPEndPoint? RemoteEndPoint => socket.RemoteEndPoint as IPEndPoint;
 
         public IPAddress? RemoteIpAddress => socket.GetRemoteIPAddress();
         public int? RemotePort => socket.GetRemotePort();
@@ -30,7 +30,7 @@ namespace SpiderStud
         public bool Connected => socket.Connected;
         public int BytesAvailable => socket.Available;
 
-        private bool isManaged = false;
+        private readonly bool isManaged = false;
         private readonly IPAddress? managedAddress;
         private readonly bool managedIsDualStack;
 
@@ -105,7 +105,7 @@ namespace SpiderStud
             socket.Listen(backlog);
         }
 
-        public void Bind(EndPoint endPoint)
+        public void Bind(IPEndPoint endPoint)
         {
             socket.Bind(endPoint);
         }
