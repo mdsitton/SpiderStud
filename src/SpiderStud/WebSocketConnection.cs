@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Buffers;
 using System.IO;
 using System.Text;
@@ -86,7 +86,7 @@ namespace SpiderStud
             SendBytes(dataOut);
         }
 
-        public void Close(StatusCode code = StatusCode.NormalClosure)
+        public void Close(WebSocketStatusCode code = WebSocketStatusCode.NormalClosure)
         {
             if (closing || closed)
                 return;
@@ -126,7 +126,7 @@ namespace SpiderStud
             if (!request.Headers.TryGetValue("Sec-WebSocket-Version", out string version) || version != "13")
             {
                 // TODO - Return http 400 error since we have not established a websocket connection with the handshake
-                throw new WebSocketException(StatusCode.ProtocolError);
+                throw new WebSocketException(WebSocketStatusCode.ProtocolError);
             }
 
             var ip = Socket.RemoteIpAddress;
@@ -182,12 +182,12 @@ namespace SpiderStud
             else if (e is IOException)
             {
                 SpiderStudLog.Debug("Error while reading", e);
-                Close(StatusCode.AbnormalClosure);
+                Close(WebSocketStatusCode.AbnormalClosure);
             }
             else
             {
                 SpiderStudLog.Error("Application Error", e);
-                Close(StatusCode.InternalServerError);
+                Close(WebSocketStatusCode.InternalServerError);
             }
         }
 
@@ -238,14 +238,14 @@ namespace SpiderStud
             {
                 case FrameType.Close:
                     if (frameData.Length == 1 || frameData.Length > 125)
-                        throw new WebSocketException(StatusCode.ProtocolError);
+                        throw new WebSocketException(WebSocketStatusCode.ProtocolError);
 
                     if (frameData.Length >= 2)
                     {
-                        var closeCode = (StatusCode)frameData.ReadUInt16BE(0);
+                        var closeCode = (WebSocketStatusCode)frameData.ReadUInt16BE(0);
                         if (!closeCode.IsValidCode())
                         {
-                            throw new WebSocketException(StatusCode.ProtocolError);
+                            throw new WebSocketException(WebSocketStatusCode.ProtocolError);
                         }
                     }
 

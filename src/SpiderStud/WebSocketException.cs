@@ -3,21 +3,21 @@ namespace SpiderStud
 {
     public class WebSocketException : Exception
     {
-        public WebSocketException(StatusCode statusCode) : base()
+        public WebSocketException(WebSocketStatusCode statusCode) : base()
         {
             StatusCode = statusCode;
         }
 
-        public WebSocketException(StatusCode statusCode, string message) : base(message)
+        public WebSocketException(WebSocketStatusCode statusCode, string message) : base(message)
         {
             StatusCode = statusCode;
         }
 
-        public WebSocketException(StatusCode statusCode, string message, Exception innerException) : base(message, innerException)
+        public WebSocketException(WebSocketStatusCode statusCode, string message, Exception innerException) : base(message, innerException)
         {
             StatusCode = statusCode;
         }
 
-        public StatusCode StatusCode { get; private set; }
+        public WebSocketStatusCode StatusCode { get; private set; }
     }
 }

@@ -15,7 +15,7 @@ namespace SpiderStud
         public ReadOnlySpan<byte> MaskKey;
         public int PayloadLength;
         public int PayloadStartOffset;
-        public StatusCode ErrorCode;
+        public WebSocketStatusCode ErrorCode;
     }
 
     internal class FrameParsing
@@ -129,7 +129,7 @@ namespace SpiderStud
 
             if (!result.FrameType.IsDefined() || result.ReservedBits != 0)
             {
-                result.ErrorCode = StatusCode.ProtocolError;
+                result.ErrorCode = WebSocketStatusCode.ProtocolError;
                 return result;
             }
 
@@ -147,7 +147,7 @@ namespace SpiderStud
                 // So we need to close the connection if this occurs
                 if (longLength > (Int32.MaxValue - index + 4))
                 {
-                    result.ErrorCode = StatusCode.MessageTooBig;
+                    result.ErrorCode = WebSocketStatusCode.MessageTooBig;
                     return result;
                 }
                 result.PayloadLength = (int)longLength;

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 
 namespace SpiderStud
 {
@@ -7,7 +7,7 @@ namespace SpiderStud
         IWebSocketClientHandler DataHandler { get; }
 
         void SendMessage(FrameType type, ReadOnlySpan<byte> data, bool endOfMessage = true);
-        void Close(StatusCode statusCode = StatusCode.NormalClosure);
+        void Close(WebSocketStatusCode statusCode = WebSocketStatusCode.NormalClosure);
         IWebSocketConnectionInfo? ConnectionInfo { get; }
         bool IsAvailable { get; }
     }
