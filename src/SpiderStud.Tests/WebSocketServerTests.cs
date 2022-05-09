@@ -33,7 +33,7 @@ namespace SpiderStud.Tests
             socketMock.LocalEndPoint.Returns(ipLocal);
             socketMock.Accept().Returns(Substitute.For<ISocket>());
             _server.ListenerSocket = socketMock;
-            _server.Start(() => Substitute.For<IWebSocketClientHandler>());
+            _server.Start(() => Substitute.For<IWebSocketServiceHandler>());
 
 
             socketMock.Received().Bind(ipLocal);
