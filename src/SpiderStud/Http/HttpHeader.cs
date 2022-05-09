@@ -6,7 +6,7 @@ using System.Text.RegularExpressions;
 using System.Threading;
 using Cysharp.Text;
 
-namespace SpiderStud
+namespace SpiderStud.Http
 {
     public static class HttpHeader
     {
@@ -29,7 +29,7 @@ namespace SpiderStud
             return Convert.ToBase64String(bytes);
         }
 
-        internal static ReadOnlySpan<byte> CreateHandshake(WebSocketHttpRequest request)
+        internal static ReadOnlySpan<byte> CreateHandshake(HttpRequest request)
         {
             SpiderStudLog.Debug("Building Hybi-14 Response");
             zBuilder.Clear();
@@ -50,7 +50,7 @@ namespace SpiderStud
             return zBuilder.AsSpan();
         }
 
-        public static WebSocketHttpRequest? Parse(ReadOnlySpan<byte> bytes)
+        public static HttpRequest? Parse(ReadOnlySpan<byte> bytes)
         {
             if (bytes.Length > 4096)
                 return null;
@@ -62,7 +62,7 @@ namespace SpiderStud
             if (!match.Success)
                 return null;
 
-            var request = new WebSocketHttpRequest
+            var request = new HttpRequest
             {
                 Method = match.Groups["method"].Value,
                 Path = match.Groups["path"].Value,

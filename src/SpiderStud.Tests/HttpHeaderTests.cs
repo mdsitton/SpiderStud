@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using Xunit;
 using System.Text;
+using SpiderStud.Http;
 
 namespace SpiderStud.Tests
 {
@@ -9,7 +10,7 @@ namespace SpiderStud.Tests
         [Fact]
         public void ShouldReturnNullForEmptyBytes()
         {
-            WebSocketHttpRequest request = HttpHeader.Parse(new byte[0]);
+            HttpRequest request = HttpHeader.Parse(new byte[0]);
 
             Assert.Null(request);
         }
@@ -17,7 +18,7 @@ namespace SpiderStud.Tests
         [Fact]
         public void ShouldReadResourceLine()
         {
-            WebSocketHttpRequest request = HttpHeader.Parse(ValidRequestArray());
+            HttpRequest request = HttpHeader.Parse(ValidRequestArray());
 
             Assert.Equal("GET", request.Method);
             Assert.Equal("/demo", request.Path);
@@ -26,7 +27,7 @@ namespace SpiderStud.Tests
         [Fact]
         public void ShouldReadHeaders()
         {
-            WebSocketHttpRequest request = HttpHeader.Parse(ValidRequestArray());
+            HttpRequest request = HttpHeader.Parse(ValidRequestArray());
 
             Assert.Equal("example.com", request.Headers["Host"]);
             Assert.Equal("Upgrade", request.Headers["Connection"]);
@@ -74,7 +75,7 @@ namespace SpiderStud.Tests
         [Fact]
         public void HeadersShouldBeCaseInsensitive()
         {
-            WebSocketHttpRequest request = HttpHeader.Parse(ValidRequestArray());
+            HttpRequest request = HttpHeader.Parse(ValidRequestArray());
 
             Assert.True(request.Headers.ContainsKey("Sec-WebSocket-Protocol"));
             Assert.True(request.Headers.ContainsKey("sec-websocket-protocol"));

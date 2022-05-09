@@ -1,11 +1,12 @@
 ﻿using System;
 using System.Net;
+using SpiderStud.Http;
 
 namespace SpiderStud
 {
     public class WebSocketConnectionInfo : IWebSocketConnectionInfo
     {
-        public static WebSocketConnectionInfo Create(WebSocketHttpRequest request, IPAddress clientIp, int clientPort)
+        public static WebSocketConnectionInfo Create(HttpRequest request, IPAddress clientIp, int clientPort)
         {
             var info = new WebSocketConnectionInfo
             {

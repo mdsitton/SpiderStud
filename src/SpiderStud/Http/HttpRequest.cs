@@ -1,9 +1,9 @@
 using System.Collections.Generic;
 using System;
 
-namespace SpiderStud
+namespace SpiderStud.Http
 {
-    public class WebSocketHttpRequest
+    public class HttpRequest
     {
         public string Method { get; set; } = String.Empty;
 

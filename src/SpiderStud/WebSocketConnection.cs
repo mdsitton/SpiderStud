@@ -1,10 +1,11 @@
-using System;
+﻿using System;
 using System.Buffers;
 using System.IO;
 using System.Text;
 using System.Net.Sockets;
 using SpiderStud.Helpers;
 using BinaryEx;
+using SpiderStud.Http;
 
 namespace SpiderStud
 {
@@ -16,14 +17,14 @@ namespace SpiderStud
         public IWebSocketConnectionInfo? ConnectionInfo { get; private set; }
         public bool IsAvailable => !closing && !closed && Socket.Connected;
 
-        public IWebSocketClientHandler DataHandler { get; private set; }
+        public IWebSocketServiceHandler DataHandler { get; private set; }
         private byte[] receiveBuffer;
         private int receiveOffset;
         private bool closing;
         private bool closed;
         private bool handshakeCompleted = false;
 
-        public WebSocketConnection(ISocket socket, WebSocketServer server, IWebSocketClientHandler dataHandler)
+        public WebSocketConnection(ISocket socket, WebSocketServer server, IWebSocketServiceHandler dataHandler)
         {
             Socket = socket;
             DataHandler = dataHandler;
