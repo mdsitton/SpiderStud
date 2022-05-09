@@ -5,7 +5,7 @@ using System.Threading.Tasks;
 
 namespace SpiderStud
 {
-    public interface IWebSocketClientHandler
+    public interface IWebSocketServiceHandler
     {
         void OnConfig(WebSocketServer server, IWebSocketConnection connection);
         void OnError(Exception e);

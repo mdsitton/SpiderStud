@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
@@ -6,7 +6,8 @@ using System.Text;
 
 namespace SpiderStud.Samples.ConsoleApp
 {
-    class ClientHandler : IWebSocketClientHandler
+    // A seperate instance of the service handler is used for each client connection
+    class ClientServiceHandler : IWebSocketServiceHandler
     {
         private IWebSocketConnection clientConnection;
         private WebSocketServer server;
@@ -48,9 +49,9 @@ namespace SpiderStud.Samples.ConsoleApp
             Console.WriteLine("Close!");
         }
 
-        public static IWebSocketClientHandler Create()
+        public static IWebSocketServiceHandler Create()
         {
-            return new ClientHandler();
+            return new ClientServiceHandler();
         }
     }
 
@@ -61,7 +62,7 @@ namespace SpiderStud.Samples.ConsoleApp
             SpiderStudLog.Level = LogLevel.Debug;
             var allSockets = new List<IWebSocketConnection>();
             var server = new WebSocketServer("ws://0.0.0.0:8181");
-            server.Start(ClientHandler.Create);
+            server.Start(ClientServiceHandler.Create);
 
             var input = Console.ReadLine();
             while (input != "exit")

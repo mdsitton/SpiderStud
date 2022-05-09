@@ -1,10 +1,10 @@
-using System;
+﻿using System;
 
 namespace SpiderStud
 {
     public interface IWebSocketConnection
     {
-        IWebSocketClientHandler DataHandler { get; }
+        IWebSocketServiceHandler DataHandler { get; }
 
         void SendMessage(FrameType type, ReadOnlySpan<byte> data, bool endOfMessage = true);
         void Close(WebSocketStatusCode statusCode = WebSocketStatusCode.NormalClosure);

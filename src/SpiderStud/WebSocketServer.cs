@@ -9,7 +9,7 @@ using System.Collections.Generic;
 
 namespace SpiderStud
 {
-    public delegate IWebSocketClientHandler ClientHandlerFactory();
+    public delegate IWebSocketServiceHandler ClientHandlerFactory();
 
     public partial class WebSocketServer : IDisposable
     {
