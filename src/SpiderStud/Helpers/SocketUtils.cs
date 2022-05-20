@@ -4,10 +4,12 @@ using System.Net;
 using System.Net.Sockets;
 using System.Buffers.Binary;
 using BinaryEx;
+using System.Threading.Tasks;
+using System.Security.Authentication;
 
 namespace SpiderStud.Helpers
 {
-    internal static class SocketExtensions
+    internal static class SocketUtils
     {
         [ThreadStatic]
         private static byte[] scratchBytes = new byte[size * 3];
@@ -53,5 +55,41 @@ namespace SpiderStud.Helpers
         {
             return (socket.LocalEndPoint as IPEndPoint)?.Port;
         }
+
+        public static Socket CreateListenSocket(IPAddress address, bool dualStack)
+        {
+            var socket = new Socket(address.AddressFamily, SocketType.Stream, ProtocolType.IP);
+
+            socket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, 1);
+
+            if (dualStack)
+            {
+                if (!SpiderStudRuntime.IsRunningOnMono() && SpiderStudRuntime.IsRunningOnWindows())
+                {
+                    socket.SetSocketOption(SocketOptionLevel.IPv6, SocketOptionName.IPv6Only, false);
+                }
+            }
+            // The tcp keepalive default values on most systems
+            // are huge (~7200s). Set them to something more reasonable.
+            socket.SetKeepAlive();
+            return socket;
+        }
+
+        public static SslProtocols ConvertToSslProto(TlsVersions versions)
+        {
+            SslProtocols protocols = SslProtocols.None;
+            if (versions.HasFlag(TlsVersions.Tls12))
+            {
+                protocols |= SslProtocols.Tls12;
+            }
+
+            // Not supported on older .net standard 2.1 versions
+            // if (versions.HasFlag(TlsVersions.Tls13))
+            // {
+            //     protocols |= SslProtocols.Tls13;
+            // }
+            return protocols;
+        }
+
     }
 }

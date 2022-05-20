@@ -7,7 +7,7 @@ namespace SpiderStud
 {
     public interface IWebSocketClientHandlerAsync
     {
-        Task OnConfig(WebSocketServer server, IWebSocketConnection connection);
+        Task OnConfig(SpiderStudServer server, IWebSocketConnection connection);
         Task OnError(Exception e);
         Task OnOpen();
         Task OnClose();

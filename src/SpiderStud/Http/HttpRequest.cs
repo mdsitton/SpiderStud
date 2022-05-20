@@ -10,6 +10,7 @@ namespace SpiderStud.Http
         public string Method;
         public string Path;
         public string HttpVersionStr;
+        public HttpConnection Connection;
 
         public Dictionary<string, string> Headers;
 
@@ -18,12 +19,13 @@ namespace SpiderStud.Http
 
         private static readonly Regex _regex = new Regex(pattern, RegexOptions.IgnoreCase | RegexOptions.Multiline | RegexOptions.Compiled);
 
-        public HttpRequest(string method = "", string path = "", string httpVersionStr = "")
+        public HttpRequest(HttpConnection connection, string method = "", string path = "", string httpVersionStr = "")
         {
             Headers = new Dictionary<string, string>(StringComparer.InvariantCultureIgnoreCase);
             Method = method;
             Path = path;
             HttpVersionStr = httpVersionStr;
+            Connection = connection;
         }
 
         public bool Parse(ReadOnlySpan<byte> bytes)

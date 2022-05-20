@@ -23,7 +23,7 @@ namespace SpiderStud
 
         internal static ReadOnlySpan<byte> CreateHandshake(HttpRequest request)
         {
-            SpiderStudLog.Debug("Building Hybi-14 Response");
+            Logging.Debug("Building Hybi-14 Response");
             HttpResponse response = new HttpResponse(HttpStatusCode.SwitchingProtocols, HttpHeaderConnection.Upgrade);
             response.Headers["Upgrade"] = "websocket";
             response.Headers["Sec-WebSocket-Accept"] = CreateResponseKey(request.Headers["Sec-WebSocket-Key"]);

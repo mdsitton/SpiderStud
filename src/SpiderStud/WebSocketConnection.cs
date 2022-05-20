@@ -13,8 +13,8 @@ namespace SpiderStud
     {
         private const int ReadSize = 8 * 1024;
 
-        public ISocket Socket { get; set; }
-        public WebSocketServer Server { get; }
+        public IPeerSocket Socket { get; set; }
+        public SpiderStudServer Server { get; }
         public IWebSocketConnectionInfo? ConnectionInfo { get; private set; }
         public bool IsAvailable => !closing && !closed && Socket.Connected;
 
@@ -25,7 +25,7 @@ namespace SpiderStud
         private bool closed;
         private bool handshakeCompleted = false;
 
-        public WebSocketConnection(ISocket socket, WebSocketServer server)
+        public WebSocketConnection(IPeerSocket socket, SpiderStudServer server)
         {
             Socket = socket;
             Server = server;
@@ -77,7 +77,7 @@ namespace SpiderStud
 
             if (!IsAvailable)
             {
-                SpiderStudLog.Warn("Data sent while closing or after close. Ignoring.");
+                Logging.Warn("Data sent while closing or after close. Ignoring.");
                 return;
             }
 
@@ -171,7 +171,7 @@ namespace SpiderStud
 
             if (e is ObjectDisposedException)
             {
-                SpiderStudLog.Warn("Swallowing ObjectDisposedException", e);
+                Logging.Warn("Swallowing ObjectDisposedException", e);
                 return;
             }
 
@@ -179,17 +179,17 @@ namespace SpiderStud
 
             if (e is WebSocketException wse)
             {
-                SpiderStudLog.Debug("Error while reading", e);
+                Logging.Debug("Error while reading", e);
                 Close(wse.StatusCode);
             }
             else if (e is IOException)
             {
-                SpiderStudLog.Debug("Error while reading", e);
+                Logging.Debug("Error while reading", e);
                 Close(WebSocketStatusCode.AbnormalClosure);
             }
             else
             {
-                SpiderStudLog.Error("Application Error", e);
+                Logging.Error("Application Error", e);
                 Close(WebSocketStatusCode.InternalServerError);
             }
         }
@@ -208,7 +208,7 @@ namespace SpiderStud
 
                 if (bytesRead <= 0)
                 {
-                    SpiderStudLog.Debug("0 bytes read. Closing.");
+                    Logging.Debug("0 bytes read. Closing.");
                     CloseSocket();
                     return;
                 }
@@ -261,7 +261,7 @@ namespace SpiderStud
                     DataHandler.OnMessage(frameType, endOfMessage, frameData);
                     break;
                 default:
-                    SpiderStudLog.Debug("Received unhandled " + frameType);
+                    Logging.Debug("Received unhandled " + frameType);
                     break;
             }
         }
@@ -269,9 +269,9 @@ namespace SpiderStud
         private void HandleWriteError(Exception e)
         {
             if (e is IOException)
-                SpiderStudLog.Debug("Failed to send. Disconnecting.", e);
+                Logging.Debug("Failed to send. Disconnecting.", e);
             else
-                SpiderStudLog.Info("Failed to send. Disconnecting.", e);
+                Logging.Info("Failed to send. Disconnecting.", e);
 
             DataHandler.OnError(e);
             CloseSocket();

@@ -44,7 +44,7 @@ namespace SpiderStud
             int pos = 0;
 
             byte frameOpcode = (byte)frameType;
-            byte frameFinal = (byte)(endOfMessage ? 0x80 : 0x00); // Fragmented packets 
+            byte frameFinal = (byte)(endOfMessage ? 0x80 : 0x00); // Fragmented frames 
 
             byte maskedFrameData = (byte)(maskedFrame ? 0x80 : 0x00); // this is a masked frame 
 

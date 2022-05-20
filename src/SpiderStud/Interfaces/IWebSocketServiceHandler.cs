@@ -5,10 +5,9 @@ using System.Threading.Tasks;
 
 namespace SpiderStud
 {
-    public interface IWebSocketServiceHandler
+    public interface IWebSocketServiceHandler : IDisposable
     {
-        void OnConfig(WebSocketServer server, IWebSocketConnection connection);
-        void OnError(Exception e);
+        void OnConfig(SpiderStudServer server, IWebSocketConnection connection);
         void OnOpen();
         void OnClose();
         void OnMessage(FrameType type, bool endOfMessage, ReadOnlySpan<byte> data);

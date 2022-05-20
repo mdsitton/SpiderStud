@@ -5,11 +5,9 @@ using System.Threading.Tasks;
 
 namespace SpiderStud.Http
 {
-    public interface IHttpServiceHandler
+    public interface IHttpServiceHandler : IDisposable
     {
-        void OnStart(WebSocketServer server, IWebSocketConnection connection);
-        void OnError(Exception e);
-        HttpResponse OnRequest(HttpRequest request);
-        void OnMessage(FrameType type, bool endOfMessage, ReadOnlySpan<byte> data);
+        void OnStart(SpiderStudServer server);
+        void OnRequest(HttpRequest request);
     }
 }
