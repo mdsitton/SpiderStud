@@ -57,6 +57,12 @@ namespace SpiderStud.Http
             receiveEventArgs.SetBuffer(receiveArgsBuffer.Memory);
         }
 
+        public void Dispose()
+        {
+            sendArgsBuffer.Dispose();
+            receiveArgsBuffer.Dispose();
+        }
+
         public void InitConnection(SecureIPEndpoint endpoint)
         {
             ConnectedEndpoint = endpoint;
@@ -95,7 +101,7 @@ namespace SpiderStud.Http
             // StartReceiving();
             while (!clientSocket.ReceiveAsync(sendEventArgs))
             {
-                OnReceive(clientSocket, sendEventArgs);
+                OnReceiveComplete(clientSocket, sendEventArgs, sendEventArgs.TransferedData);
             }
         }
 
@@ -132,7 +138,7 @@ namespace SpiderStud.Http
             tlsProtocol = null;
         }
 
-        public void OnReceive(Socket socket, SocketAsyncArgs e)
+        public void OnReceiveComplete(Socket socket, SocketAsyncArgs e, ReadOnlySpan<byte> receivedData)
         {
 
         }
