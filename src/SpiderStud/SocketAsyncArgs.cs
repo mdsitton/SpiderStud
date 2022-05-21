@@ -1,4 +1,5 @@
 using System;
+using System.Buffers;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net.Sockets;
@@ -15,6 +16,8 @@ namespace SpiderStud
             completionhandler = handler;
         }
 
+        public Span<byte> TransferedData => MemoryBuffer.Span.Slice(Offset, BytesTransferred);
+
         protected override void OnCompleted(SocketAsyncEventArgs e)
         {
             if (e.SocketError != SocketError.Success)
@@ -29,7 +32,7 @@ namespace SpiderStud
                     // re-schedule next read and handle any syncrously completed events
                     do
                     {
-                        completionhandler.OnReceive(e.ConnectSocket, this);
+                        completionhandler.OnReceiveComplete(e.ConnectSocket, this, TransferedData);
                     }
                     while (!ConnectSocket.ReceiveAsync(this));
                     break;
@@ -40,10 +43,10 @@ namespace SpiderStud
                     // {
                     // }
                     // while (!ConnectSocket.SendAsync(this));
-                    completionhandler.OnSend(e.ConnectSocket, this);
+                    completionhandler.OnSendComplete(e.ConnectSocket, this);
                     break;
                 case SocketAsyncOperation.Disconnect:
-                    completionhandler.OnDisconnect(e.ConnectSocket, this);
+                    completionhandler.OnDisconnectComplete(e.ConnectSocket, this);
                     break;
             }
         }

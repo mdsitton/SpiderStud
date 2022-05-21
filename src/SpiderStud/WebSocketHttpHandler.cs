@@ -8,12 +8,13 @@ namespace SpiderStud
 {
     public class WebSocketHttpHandler : IHttpServiceHandler
     {
-        private WsServiceHandlerFactory WebSocketClientFactory;
-        private List<WebSocketConnection> activeConnections = new List<WebSocketConnection>();
-        private SpiderStudServer server;
+        private readonly WsServiceHandlerFactory WebSocketClientFactory;
+        private readonly List<WebSocketConnection> activeConnections = new List<WebSocketConnection>();
+        private readonly SpiderStudServer server;
 
-        public WebSocketHttpHandler(WsServiceHandlerFactory wsFactory)
+        public WebSocketHttpHandler(SpiderStudServer server, WsServiceHandlerFactory wsFactory)
         {
+            this.server = server;
             WebSocketClientFactory = wsFactory;
         }
 
@@ -30,9 +31,8 @@ namespace SpiderStud
             // create new WebSocketConnection
         }
 
-        public void OnStart(SpiderStudServer server)
+        public void OnStart()
         {
-            this.server = server;
         }
     }
 }

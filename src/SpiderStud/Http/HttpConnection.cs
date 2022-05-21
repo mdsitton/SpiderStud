@@ -1,4 +1,5 @@
 using System;
+using System.Buffers;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net.Sockets;
@@ -9,9 +10,12 @@ using SpiderStud.Tls;
 
 namespace SpiderStud.Http
 {
-    public class HttpConnection : IAsyncSocketHandler, IBcTlsCallbacks
+    public class HttpConnection : IAsyncSocketHandler, IBcTlsCallbacks, IDisposable
     {
-        private const int ReadSize = 8 * 1024;
+        // Chose a size of 8000 bytes for our buffers
+        // This is because after this size on mono buffers get moved to the LOH
+        // For coreclr this limit much larger at 85k
+        private const int BufferSize = 8000;
 
         private bool isClosing = false;
         private readonly Socket clientSocket;
@@ -19,12 +23,19 @@ namespace SpiderStud.Http
         public SocketAsyncArgs sendEventArgs;
         public SocketAsyncArgs receiveEventArgs;
 
+        public IMemoryOwner<byte> sendArgsBuffer = MemoryPool<byte>.Shared.Rent(BufferSize);
+        public IMemoryOwner<byte> receiveArgsBuffer = MemoryPool<byte>.Shared.Rent(BufferSize);
+
+
         public Socket ClientSocket => clientSocket;
         public SecureIPEndpoint? ConnectedEndpoint { get; private set; }
 
         public bool IsAvailable => ClientSocket.Connected && !isClosing;
 
         private SpiderStudServer server;
+
+        // For sockets we want to make sure all data is delivered once closed
+        private static LingerOption lingerState = new LingerOption(true, 0);
 
         // Tls support
         private BcTlsServer? tlsServer;
@@ -36,11 +47,14 @@ namespace SpiderStud.Http
         {
             this.server = server;
             clientSocket = new Socket(SocketType.Stream, ProtocolType.Tcp);
+            clientSocket.LingerState = lingerState;
 
             // sendEventArgs will also be used for closing connection
             sendEventArgs = new SocketAsyncArgs(this);
             sendEventArgs.DisconnectReuseSocket = true;
+            sendEventArgs.SetBuffer(sendArgsBuffer.Memory);
             receiveEventArgs = new SocketAsyncArgs(this);
+            receiveEventArgs.SetBuffer(receiveArgsBuffer.Memory);
         }
 
         public void InitConnection(SecureIPEndpoint endpoint)
@@ -90,9 +104,11 @@ namespace SpiderStud.Http
             if (isClosing) return;
 
             isClosing = true;
+            // Disable send/receieve and ensure data is sent correctly
+            clientSocket.Shutdown(SocketShutdown.Both);
             while (!clientSocket.DisconnectAsync(sendEventArgs))
             {
-                OnDisconnect(clientSocket, sendEventArgs);
+                OnDisconnectComplete(clientSocket, sendEventArgs);
             }
         }
 
@@ -104,11 +120,11 @@ namespace SpiderStud.Http
 
             while (!clientSocket.SendAsync(sendEventArgs))
             {
-                OnDisconnect(clientSocket, sendEventArgs);
+                OnDisconnectComplete(clientSocket, sendEventArgs);
             }
         }
 
-        public void OnDisconnect(Socket socket, SocketAsyncArgs e)
+        public void OnDisconnectComplete(Socket socket, SocketAsyncArgs e)
         {
 
             tlsEnabled = false;
@@ -122,7 +138,7 @@ namespace SpiderStud.Http
         }
 
         // Called when send is completed
-        public void OnSend(Socket socket, SocketAsyncArgs e)
+        public void OnSendComplete(Socket socket, SocketAsyncArgs e)
         {
         }
 
