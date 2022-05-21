@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
@@ -10,9 +10,9 @@ namespace SpiderStud.Samples.ConsoleApp
     class ClientServiceHandler : IWebSocketServiceHandler
     {
         private IWebSocketConnection clientConnection;
-        private WebSocketServer server;
+        private SpiderStudServer server;
 
-        public void OnConfig(WebSocketServer wsServer, IWebSocketConnection connection)
+        public void OnConfig(SpiderStudServer wsServer, IWebSocketConnection connection)
         {
             clientConnection = connection;
             server = wsServer;
@@ -53,16 +53,35 @@ namespace SpiderStud.Samples.ConsoleApp
         {
             return new ClientServiceHandler();
         }
+
+        public void Dispose()
+        {
+            // Close any resources required
+        }
     }
 
     class Server
     {
         static void Main()
         {
-            SpiderStudLog.Level = LogLevel.Debug;
+            Logging.Level = LogLevel.Debug;
             var allSockets = new List<IWebSocketConnection>();
-            var server = new WebSocketServer("ws://0.0.0.0:8181");
-            server.Start(ClientServiceHandler.Create);
+            var config = new ServerConfig()
+            {
+                SocketRestartAfterListenError = true,
+                DualStackSupport = true,
+                MaxConnections = 256,
+                HttpConnectionTimeout = 60000,
+                WsConnectionTimeout = 60000,
+
+                // TODO - Implement utility function to take a URI string and convert to SecureIpEndpoint:
+                // ws://0.0.0.0:8181 or wss://192.168.1.10:4134
+                // http://0.0.0.0:8080 or https://192.168.1.10:4134
+                Endpoints = new List<SecureIPEndpoint> { new(System.Net.IPAddress.Any, 8181, false) }
+            };
+            var server = new SpiderStudServer(config);
+            server.WsService("/", ClientServiceHandler.Create);
+            server.Start();
 
             var input = Console.ReadLine();
             while (input != "exit")
