@@ -31,11 +31,12 @@ namespace SpiderStud.Http
         Gone = 410,
         LengthRequired = 411,
         PreconditionFailed = 412,
-        RequestEntityTooLarge = 413,
-        RequestUriTooLarge = 414,
+        PayloadTooLarge = 413,
+        UriTooLong = 414,
         UnsupportedMediaType = 415,
         RequestedRangeNotSatisfiable = 416,
         ExpectationFailed = 417,
+        UpgradeRequired = 426,
         InternalServerError = 500,
         NotImplemented = 501,
         BadGateway = 502,
@@ -108,16 +109,18 @@ namespace SpiderStud.Http
                     return "Length Required";
                 case HttpStatusCode.PreconditionFailed:
                     return "Precondition Failed";
-                case HttpStatusCode.RequestEntityTooLarge:
-                    return "Request Entity Too Large";
-                case HttpStatusCode.RequestUriTooLarge:
-                    return "Request-URI Too Large";
+                case HttpStatusCode.PayloadTooLarge:
+                    return "Payload Too Large";
+                case HttpStatusCode.UriTooLong:
+                    return "URI Too Long";
                 case HttpStatusCode.UnsupportedMediaType:
                     return "Unsupported Media Type";
                 case HttpStatusCode.RequestedRangeNotSatisfiable:
                     return "Requested range not satisfiable";
                 case HttpStatusCode.ExpectationFailed:
                     return "Expectation Failed";
+                case HttpStatusCode.UpgradeRequired:
+                    return "Upgrade Required";
                 case HttpStatusCode.InternalServerError:
                     return "Internal Server Error";
                 case HttpStatusCode.NotImplemented:
