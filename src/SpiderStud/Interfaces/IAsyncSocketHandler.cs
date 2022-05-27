@@ -9,7 +9,8 @@ namespace SpiderStud.Interfaces
     public interface IAsyncSocketHandler
     {
         void OnDisconnectComplete(Socket socket, SocketAsyncArgs e);
-        void OnReceiveComplete(Socket socket, SocketAsyncArgs e, ReadOnlySpan<byte> data);
+        void OnReceiveComplete(Socket socket, SocketAsyncArgs e, int dataWritten);
+        Memory<byte> GetRecieveMemory(int size);
         void OnSendComplete(Socket socket, SocketAsyncArgs e);
         void OnError(Socket socket, SocketError error, SocketAsyncArgs e);
     }

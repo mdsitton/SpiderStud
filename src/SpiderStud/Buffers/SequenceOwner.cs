@@ -10,24 +10,29 @@ namespace SpiderStud.Buffers
     /// Used to recycle shared <see cref="SequenceSegment"/> instances
     /// once the <see cref="ReadOnlySequence<byte>"> is ready to be discarded
     /// </summary>
-    public readonly struct ReadOnlySequenceOwner : IDisposable
+    public struct SequenceOwner : IDisposable
     {
-        internal static ReadOnlySequenceOwner Empty = new ReadOnlySequenceOwner();
         private readonly SequenceSegment startSegment;
-        private readonly int startIndex;
         private readonly SequenceSegment endSegment;
-        private readonly int endIndex;
-        readonly ReadOnlySequence<byte> sequence;
+        private SequenceSegment? currentSegment;
 
-        public ReadOnlySequence<byte> Sequence => sequence;
+        public SequenceSegment First => startSegment;
+        public SequenceSegment Last => endSegment;
 
-        public ReadOnlySequenceOwner(SequenceSegment startSegment, int startIndex, SequenceSegment endSegment, int endIndex)
+        public SequenceSegment? Current => currentSegment;
+
+        public void AdvanceCurrentSegment()
+        {
+            if (currentSegment == null)
+                return;
+            currentSegment = currentSegment.Next;
+        }
+
+        public SequenceOwner(SequenceSegment startSegment, SequenceSegment endSegment)
         {
             this.startSegment = startSegment;
-            this.startIndex = startIndex;
+            currentSegment = startSegment;
             this.endSegment = endSegment;
-            this.endIndex = endIndex;
-            sequence = new ReadOnlySequence<byte>(startSegment, startIndex, endSegment, endIndex);
         }
 
         public void Dispose()

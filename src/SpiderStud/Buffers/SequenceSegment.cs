@@ -27,6 +27,9 @@ namespace SpiderStud
         /// </summary>
         internal int End { get; private set; }
 
+        internal Memory<byte> AsMemory => AvailableMemory.Slice(Start, Length);
+        internal Span<byte> AsSpan => AvailableMemory.Span.Slice(Start, Length);
+
         /// <summary>
         /// Gets the tail of memory that has not yet been committed.
         /// </summary>

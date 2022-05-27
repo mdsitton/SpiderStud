@@ -82,12 +82,12 @@ namespace SpiderStud.Buffers
         /// <summary>
         /// Commits all written sequence data including header data and resets SequenceWriter instance for reuse 
         /// </summary>
-        /// <returns><see cref="ReadOnlySequenceOwner"/> container used to manage <see cref="SequenceSegment"/> pooling, must be disposed</returns>
-        public ReadOnlySequenceOwner SequenceCommit()
+        /// <returns><see cref="SequenceOwner"/> container used to manage <see cref="SequenceSegment"/> pooling, must be disposed</returns>
+        public SequenceOwner SequenceCommit()
         {
             if (first == null || last == null)
             {
-                return ReadOnlySequenceOwner.Empty;
+                throw new InvalidOperationException("No sequence memory ready to commit");
             }
             var firstSequence = first;
             if (header != null)
@@ -104,7 +104,7 @@ namespace SpiderStud.Buffers
                 }
 
             }
-            var sequence = new ReadOnlySequenceOwner(firstSequence, firstSequence.Start, last, last!.End);
+            var sequence = new SequenceOwner(firstSequence, last);
             header = first = last = null;
             return sequence;
         }

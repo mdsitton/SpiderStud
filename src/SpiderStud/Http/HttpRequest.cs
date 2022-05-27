@@ -30,7 +30,8 @@ namespace SpiderStud.Http
 
         public bool Parse(ReadOnlySpan<byte> bytes)
         {
-            if (bytes.Length > 4096) // TODO : Throw and return http error return code
+            // TODO : Throw or return http error return code 413 Payload Too Large
+            if (bytes.Length > 4096)
                 return false;
 
             // Check for websocket request header 
