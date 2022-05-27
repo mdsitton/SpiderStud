@@ -45,8 +45,61 @@ namespace SpiderStud.Http
         HttpVersionNotSupported = 505,
     }
 
+    public enum HttpStatusCodeClass
+    {
+        Informational = 1,
+        Successful = 2,
+        Redirection = 3,
+        ClientError = 4,
+        ServerError = 5,
+    }
+
     public static class StatusCodeExtensions
     {
+        public static HttpStatusCodeClass ToCodeClass(this HttpStatusCode code)
+        {
+            int intCode = (int)code / 100; // trunicate code
+            return (HttpStatusCodeClass)intCode;
+        }
+
+        public static bool IsCacheable(this HttpStatusCode code)
+        {
+            switch (code)
+            {
+                case HttpStatusCode.Ok:
+                case HttpStatusCode.NonAuthoritativeInformation:
+                case HttpStatusCode.NoContent:
+                case HttpStatusCode.PartialContent:
+                case HttpStatusCode.MultipleChoices:
+                case HttpStatusCode.MovedPermanently:
+                case HttpStatusCode.NotFound:
+                case HttpStatusCode.MethodNotAllowed:
+                case HttpStatusCode.Gone:
+                case HttpStatusCode.UriTooLong:
+                case HttpStatusCode.NotImplemented:
+                    return true;
+                default:
+                    return false;
+            }
+        }
+
+        /// <summary>
+        /// This only covers cases where status codes must never return Content-Length
+        /// </summary>
+        public static bool HasResponseContentLength(this HttpStatusCode code)
+        {
+            switch (code)
+            {
+                case HttpStatusCode.Continue:
+                case HttpStatusCode.SwitchingProtocols:
+                case HttpStatusCode.NoContent:
+                    return false;
+                default:
+                    return true;
+
+            }
+        }
+
         public static string ToOutputText(this HttpStatusCode code)
         {
             switch (code)

@@ -6,6 +6,7 @@ using System.Buffers.Binary;
 using BinaryEx;
 using System.Threading.Tasks;
 using System.Security.Authentication;
+using SpiderStud.Tls;
 
 namespace SpiderStud.Helpers
 {

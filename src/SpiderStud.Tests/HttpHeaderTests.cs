@@ -2,6 +2,7 @@ using System.Diagnostics;
 using Xunit;
 using System.Text;
 using SpiderStud.Http;
+using System;
 
 namespace SpiderStud.Tests
 {
@@ -10,39 +11,43 @@ namespace SpiderStud.Tests
         [Fact]
         public void ShouldReturnNullForEmptyBytes()
         {
-            HttpRequest request = WebSocketHandshake.Parse(new byte[0]);
+            HttpRequest request = new HttpRequest(null);
 
-            Assert.Null(request);
+            var errorCode = request.Parse(Array.Empty<byte>());
+
+            Assert.NotEqual(HttpStatusCode.Ok, errorCode);
         }
 
         [Fact]
         public void ShouldReadResourceLine()
         {
-            HttpRequest request = WebSocketHandshake.Parse(ValidRequestArray());
+            HttpRequest request = new HttpRequest(null);
+
+            var errorCode = request.Parse(ValidRequestArray());
 
             Assert.Equal("GET", request.Method);
             Assert.Equal("/demo", request.Path);
+            Assert.Equal(HttpStatusCode.Ok, errorCode);
         }
 
         [Fact]
         public void ShouldReadHeaders()
         {
-            HttpRequest request = WebSocketHandshake.Parse(ValidRequestArray());
+            HttpRequest request = new HttpRequest(null);
+
+            var errorCode = request.Parse(ValidRequestArray());
+
+            Assert.NotEmpty(request.Headers);
 
             Assert.Equal("example.com", request.Headers["Host"]);
             Assert.Equal("Upgrade", request.Headers["Connection"]);
             Assert.Equal("12998 5 Y3 1  .P00", request.Headers["Sec-WebSocket-Key2"]);
             Assert.Equal("http://example.com", request.Headers["Origin"]);
+            Assert.Equal(HttpStatusCode.Ok, errorCode);
         }
 
         [Fact]
-        public void ValidRequestShouldNotBeNull()
-        {
-            Assert.NotNull(WebSocketHandshake.Parse(ValidRequestArray()));
-        }
-
-        [Fact]
-        public void NoBodyRequestShouldNotBeNull()
+        public void NoBodyRequestShouldNotFail()
         {
             const string noBodyRequest =
                 "GET /demo HTTP/1.1\r\n" +
@@ -57,25 +62,32 @@ namespace SpiderStud.Tests
                 "";
             var bytes = RequestArray(noBodyRequest);
 
-            Assert.NotNull(WebSocketHandshake.Parse(bytes));
+            HttpRequest request = new HttpRequest(null);
+
+            var errorCode = request.Parse(ValidRequestArray());
+            Assert.Equal(HttpStatusCode.Ok, errorCode);
         }
 
         [Fact]
-        public void NoHeadersRequestShouldBeNull()
+        public void NoHeadersRequestShouldFail()
         {
             const string noHeadersNoBodyRequest =
                 "GET /zing HTTP/1.1\r\n" +
                 "\r\n" +
                 "";
             var bytes = RequestArray(noHeadersNoBodyRequest);
+            HttpRequest request = new HttpRequest(null);
 
-            Assert.Null(WebSocketHandshake.Parse(bytes));
+            var errorCode = request.Parse(bytes);
+            Assert.NotEqual(HttpStatusCode.Ok, errorCode);
         }
 
         [Fact]
         public void HeadersShouldBeCaseInsensitive()
         {
-            HttpRequest request = WebSocketHandshake.Parse(ValidRequestArray());
+            HttpRequest request = new HttpRequest(null);
+
+            var errorCode = request.Parse(ValidRequestArray());
 
             Assert.True(request.Headers.ContainsKey("Sec-WebSocket-Protocol"));
             Assert.True(request.Headers.ContainsKey("sec-websocket-protocol"));
@@ -85,7 +97,7 @@ namespace SpiderStud.Tests
         }
 
         [Fact]
-        public void PartialHeaderRequestShouldNotBeIncluded()
+        public void PartialHeaderRequestShouldFail()
         {
             const string partialHeaderRequest =
                 "GET /demo HTTP/1.1\r\n" +
@@ -96,8 +108,10 @@ namespace SpiderStud.Tests
                 "Upgrade: WebSocket\r\n" +
                 "Sec-WebSoc"; //Cut off
             var bytes = RequestArray(partialHeaderRequest);
-            var request = WebSocketHandshake.Parse(bytes);
-            Assert.NotNull(request);
+            HttpRequest request = new HttpRequest(null);
+
+            var errorCode = request.Parse(bytes);
+            Assert.NotEqual(HttpStatusCode.Ok, errorCode);
             Assert.True(request.Headers.ContainsKey("Upgrade"));
             Assert.False(request.Headers.ContainsKey("Sec-WebSoc"));
         }
@@ -119,8 +133,10 @@ namespace SpiderStud.Tests
                 "\r\n" +
                 "^n:ds[4U";
             var bytes = RequestArray(emptyCookieRequest);
-            var request = WebSocketHandshake.Parse(bytes);
-            Assert.NotNull(request);
+            HttpRequest request = new HttpRequest(null);
+
+            var errorCode = request.Parse(bytes);
+            Assert.Equal(HttpStatusCode.Ok, errorCode);
             Assert.Equal("", request.Headers["Cookie"]);
         }
 
@@ -132,12 +148,13 @@ namespace SpiderStud.Tests
             for (var i = 0; i < 100; i++)
             {
                 var bytes = RequestArray(requestWithLargeCookie);
+                HttpRequest request = new HttpRequest(null);
                 watch.Start();
-                var parsed = WebSocketHandshake.Parse(bytes);
+                var errorCode = request.Parse(bytes);
                 watch.Stop();
 
-                Assert.NotNull(parsed);
-                Assert.Equal(11, parsed.Headers.Count);
+                Assert.Equal(HttpStatusCode.Ok, errorCode);
+                Assert.Equal(11, request.Headers.Count);
             }
 
             Assert.InRange(watch.Elapsed.TotalSeconds, 0, 50.0 / 1000);
