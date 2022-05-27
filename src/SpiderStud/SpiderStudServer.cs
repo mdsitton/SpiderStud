@@ -178,7 +178,7 @@ namespace SpiderStud
 
         public void WsService(string resource, WsServiceHandlerFactory clientHandlerFactory)
         {
-            serviceFactories[resource] = () => new WebSocketHttpHandler(clientHandlerFactory);
+            serviceFactories[resource] = () => new WebSocketHttpHandler(this, clientHandlerFactory);
         }
 
         public void HttpService(string resource, HttpServiceHandlerFactory clientHandlerFactory)
