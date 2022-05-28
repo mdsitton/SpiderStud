@@ -183,6 +183,15 @@ namespace SpiderStud
             }
         }
 
+        public IHttpServiceHandler? GetService(string resource)
+        {
+            if (serviceFactories.TryGetValue(resource, out var factory))
+            {
+                return factory?.Invoke();
+            }
+            return null;
+        }
+
         public void WsService(string resource, WsServiceHandlerFactory clientHandlerFactory)
         {
             serviceFactories[resource] = () => new WebSocketHttpHandler(this, clientHandlerFactory);

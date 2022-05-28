@@ -30,9 +30,5 @@ namespace SpiderStud
 
             // create new WebSocketConnection
         }
-
-        public void OnStart()
-        {
-        }
     }
 }

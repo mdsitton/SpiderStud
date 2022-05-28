@@ -7,7 +7,6 @@ namespace SpiderStud.Http
 {
     public interface IHttpServiceHandler : IDisposable
     {
-        void OnStart();
-        void OnRequest(HttpRequest request);
+        bool OnRequest(HttpRequest request, HttpConnection connection);
     }
 }

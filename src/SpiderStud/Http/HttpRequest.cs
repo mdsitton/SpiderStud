@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System;
 using System.Text.RegularExpressions;
 using System.Text;
+using System.Buffers;
 
 namespace SpiderStud.Http
 {
@@ -10,19 +11,17 @@ namespace SpiderStud.Http
         public string Method;
         public string Path;
         public string HttpVersionStr;
-        public HttpConnection? Connection;
         public int HeaderStart;
         public int HeaderLength;
 
         public Dictionary<string, string> Headers;
 
-        public HttpRequest(HttpConnection? connection)
+        public HttpRequest(Dictionary<string, string>? headers = null)
         {
-            Headers = new Dictionary<string, string>(StringComparer.InvariantCultureIgnoreCase);
+            Headers = headers ?? new Dictionary<string, string>(StringComparer.InvariantCultureIgnoreCase);
             Method = string.Empty;
             Path = string.Empty;
             HttpVersionStr = string.Empty;
-            Connection = connection;
             HeaderStart = 0;
             HeaderLength = 0;
         }
@@ -106,7 +105,7 @@ namespace SpiderStud.Http
             return true;
         }
 
-        public bool ParseHeaderFields(ReadOnlySpan<byte> line)
+        private bool ParseHeaderFields(ReadOnlySpan<byte> line)
         {
             string lineStr = Encoding.ASCII.GetString(line);
             ReadOnlySpan<byte> whitespaceSpan = whiteSpace;
@@ -143,7 +142,31 @@ namespace SpiderStud.Http
             return true;
         }
 
-        public HttpStatusCode Parse(ReadOnlySpan<byte> bytes)
+        /// <summary>
+        /// Find index of the end of the http header within a ReadOnlySequence
+        /// This is used to determine if the full http header is receieved 
+        /// </summary>
+        internal static long EndOfHeaderIndex(ReadOnlySequence<byte> byteSequence)
+        {
+            long fullOffset = 0;
+            foreach (var bytes in byteSequence)
+            {
+                int pos = bytes.Span.IndexOf(endOfHeaderSequence);
+
+                if (pos == -1)
+                {
+                    fullOffset += bytes.Length;
+                }
+                else
+                {
+                    fullOffset += pos;
+                    return fullOffset;
+                }
+            }
+            return -1;
+        }
+
+        internal HttpStatusCode Parse(ReadOnlySpan<byte> bytes)
         {
             if (bytes.Length >= 8000)
                 return HttpStatusCode.PayloadTooLarge;

@@ -168,6 +168,7 @@ namespace SpiderStud.Http
             // }
 
             sendEventArgs.StartSend(clientSocket, sendBuffer.SequenceCommit());
+            sendState = SEND_ACTIVE;
         }
 
         /// <summary>
@@ -189,7 +190,6 @@ namespace SpiderStud.Http
             // Copy data to eventArgs
             data.CopyTo(writer!.GetSpan(data.Length));
             writer.Advance(data.Length);
-            sendState = SEND_ACTIVE;
             CommitSend();
         }
 
@@ -205,10 +205,53 @@ namespace SpiderStud.Http
             return receiveBuffer.GetMemory(size);
         }
 
+        public void SendResponse(HttpResponse response)
+        {
+            IBufferWriter<byte>? writer;
+
+            // wait until any active sending data is completed
+            while (!TryInitSend(out writer))
+            {
+                Thread.Sleep(1);
+            }
+            response.WriteResponseHeader(writer!);
+            CommitSend();
+        }
+
+        // Dictionary that is reused for processing headers
+        private Dictionary<string, string> headers = new Dictionary<string, string>(StringComparer.InvariantCultureIgnoreCase);
+
         public void OnReceiveComplete(Socket socket, SocketAsyncArgs e, int dataWritten)
         {
             receiveBuffer.Advance(dataWritten);
             lastReceiveTime = DateTime.UtcNow;
+            var currentWritten = receiveBuffer.WrittenSequence;
+            long offset = HttpRequest.EndOfHeaderIndex(currentWritten);
+            if (offset != -1)
+            {
+                if (currentWritten.IsSingleSegment)
+                {
+                    headers.Clear(); // clear headers obj
+                    HttpRequest request = new HttpRequest(headers);
+                    request.Parse(currentWritten.FirstSpan);
+                    var requestHandler = server.GetService(request.Path);
+                    if (requestHandler == null)
+                    {
+                        // Endpoint not found return error
+                        HttpResponse response = new HttpResponse(HttpStatusCode.NotFound);
+                        SendResponse(response);
+                        CloseConnection();
+                    }
+                    else
+                    {
+                        bool keepConnectionAlive = requestHandler.OnRequest(request, this);
+                        if (!keepConnectionAlive)
+                        {
+                            CloseConnection();
+                        }
+                    }
+                }
+            }
         }
 
         // Called when send is completed
