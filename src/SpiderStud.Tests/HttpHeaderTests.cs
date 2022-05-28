@@ -112,7 +112,7 @@ namespace SpiderStud.Tests
 
             var errorCode = request.Parse(bytes);
             Assert.NotEqual(HttpStatusCode.Ok, errorCode);
-            Assert.True(request.Headers.ContainsKey("Upgrade"));
+            Assert.False(request.Headers.ContainsKey("Upgrade"));
             Assert.False(request.Headers.ContainsKey("Sec-WebSoc"));
         }
 

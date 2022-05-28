@@ -45,10 +45,10 @@ namespace SpiderStud.Http
 
         private const byte kvSeperator = (byte)':';
 
-        private int SkipWhitespace(ReadOnlySpan<byte> data)
+        private int SkipWhitespace(ReadOnlySpan<byte> data, int startPos)
         {
             ReadOnlySpan<byte> whitespaceSpan = whiteSpace;
-            for (int i = 0; i < data.Length; ++i)
+            for (int i = startPos; i < data.Length; ++i)
             {
                 int found = whitespaceSpan.IndexOf(data[i]);
                 if (found == -1)
@@ -81,7 +81,7 @@ namespace SpiderStud.Http
             int nextWhiteSpace = line.IndexOfAny(whitespaceSpan);
             if (nextWhiteSpace == -1) return false;
 
-            int endOfWhiteSpace = SkipWhitespace(line);
+            int endOfWhiteSpace = SkipWhitespace(line, nextWhiteSpace);
             if (endOfWhiteSpace == -1) return false;
 
             Method = Encoding.ASCII.GetString(line.Slice(0, nextWhiteSpace));
@@ -92,7 +92,7 @@ namespace SpiderStud.Http
             nextWhiteSpace = line.IndexOfAny(whitespaceSpan);
             if (nextWhiteSpace == -1) return false;
 
-            endOfWhiteSpace = SkipWhitespace(line);
+            endOfWhiteSpace = SkipWhitespace(line, nextWhiteSpace);
             if (endOfWhiteSpace == -1) return false;
 
             Path = Encoding.ASCII.GetString(line.Slice(0, nextWhiteSpace));
@@ -108,6 +108,7 @@ namespace SpiderStud.Http
 
         public bool ParseHeaderFields(ReadOnlySpan<byte> line)
         {
+            string lineStr = Encoding.ASCII.GetString(line);
             ReadOnlySpan<byte> whitespaceSpan = whiteSpace;
             int sepIndex = line.IndexOf(kvSeperator);
 
@@ -117,12 +118,12 @@ namespace SpiderStud.Http
             // Verify that we don't have whitespace at the start of header fields
             // Any such data is use of obsolete line folding, and we are required to fail here
             int found = whitespaceSpan.IndexOf(line[0]);
-            if (found == -1)
+            if (found != -1)
                 return false;
 
             string key = Encoding.ASCII.GetString(line.Slice(0, sepIndex));
             line = line.Slice(sepIndex + 1); // skip over seperator
-            int endOfWhiteSpace = SkipWhitespace(line);
+            int endOfWhiteSpace = SkipWhitespace(line, 0);
 
             string value;
 
@@ -134,7 +135,7 @@ namespace SpiderStud.Http
             else
             {
                 int length = SkipWhitespaceFromEnd(line) + 1;
-                value = Encoding.ASCII.GetString(line.Slice(0, length));
+                value = Encoding.ASCII.GetString(line.Slice(endOfWhiteSpace, length - endOfWhiteSpace));
             }
 
             Headers.Add(key, value);
@@ -176,10 +177,10 @@ namespace SpiderStud.Http
 
             bool parsedRequestLine = false;
 
-            for (int offset = 0; offset < bytes.Length - 4;)
+            while (bytes.Length > 4)
             {
                 int lineEnd = bytes.IndexOf(endOfLineSequence);
-                ReadOnlySpan<byte> line = bytes.Slice(offset, lineEnd - offset);
+                ReadOnlySpan<byte> line = bytes.Slice(0, lineEnd);
                 if (!parsedRequestLine)
                 {
                     if (!ParseRequestLine(line))
@@ -195,29 +196,14 @@ namespace SpiderStud.Http
                         return HttpStatusCode.BadRequest;
                     }
                 }
-                offset = lineEnd + 2;
+                bytes = bytes.Slice(lineEnd + 2);
             }
 
-
-            // // Check for websocket request header 
-            // var body = Encoding.ASCII.GetString(bytes); // http header is only ascii data
-            // Match match = _regex.Match(body);
-
-            // if (!match.Success) // Return http error code response
-            //     return HttpStatusCode.BadRequest;
-
-            // Method = match.Groups["method"].Value;
-            // Path = match.Groups["path"].Value;
-            // HttpVersionStr = match.Groups["http_version"].Value;
-
-            // var fields = match.Groups["field_name"].Captures;
-            // var values = match.Groups["field_value"].Captures;
-            // for (var i = 0; i < fields.Count; i++)
-            // {
-            //     var name = fields[i].ToString();
-            //     var value = values[i].ToString();
-            //     Headers[name] = value;
-            // }
+            // If the request doesn't have any headers return BadRequest
+            if (Headers.Count == 0)
+            {
+                return HttpStatusCode.BadRequest;
+            }
             return HttpStatusCode.Ok;
         }
     }
