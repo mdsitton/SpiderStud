@@ -66,6 +66,10 @@ namespace SpiderStud
         internal readonly ServerConfig config;
         private Semaphore connectionLimit;
 
+        public TimeSpan HttpTimeoutSpan { get; private set; }
+
+        private Thread timerThread;
+
         public SpiderStudServer(ServerConfig config)
         {
             this.config = config;
@@ -76,10 +80,13 @@ namespace SpiderStud
                 var sock = SocketUtils.CreateListenSocket(endpoint.Address, SupportsDualStack);
                 EndpointSockets.Add(sock);
             }
+            HttpTimeoutSpan = new TimeSpan(config.HttpConnectionTimeout * TimeSpan.TicksPerMillisecond);
+            timerThread = new Thread(ConnectionWatchThread);
         }
 
         public void Dispose()
         {
+            connectionWatchRunning = false;
             foreach (var socket in EndpointSockets)
             {
                 socket.Dispose();
@@ -197,12 +204,8 @@ namespace SpiderStud
             }
 
             StartSockets();
+            timerThread.Start();
 
-            // if (clientReceiveThread == null)
-            // {
-            //     clientReceiveThread = new Thread(ClientReceiveThread);
-            //     clientReceiveThread.Start();
-            // }
         }
 
         // Called after a client 
@@ -227,26 +230,19 @@ namespace SpiderStud
             connection.StartReceiving();
         }
 
-        private bool clientReceiveRunning = true;
-        private void ClientReceiveThread()
+        private bool connectionWatchRunning = true;
+        private void ConnectionWatchThread()
         {
-            while (clientReceiveRunning)
+            while (connectionWatchRunning)
             {
-                bool foundSocketData = false;
                 lock (activeConnections)
                 {
                     foreach (var connection in activeConnections)
                     {
-                        if (connection.ClientSocket.Available > 0)
-                        {
-                            foundSocketData = true;
-                        }
+                        connection.TimerTick();
                     }
                 }
-                if (!foundSocketData)
-                {
-                    Thread.Sleep(5);
-                }
+                Thread.Sleep(HttpTimeoutSpan);
             }
         }
     }

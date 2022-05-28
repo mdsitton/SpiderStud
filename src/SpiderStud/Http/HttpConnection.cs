@@ -14,7 +14,7 @@ namespace SpiderStud.Http
 {
     public class HttpConnection : IAsyncSocketHandler, IBcTlsCallbacks, IDisposable
     {
-        private bool isClosing = false;
+        private volatile bool isClosing = false;
         private readonly Socket clientSocket;
 
         public SocketAsyncArgs sendEventArgs;
@@ -38,6 +38,10 @@ namespace SpiderStud.Http
         private TlsServerProtocol? tlsProtocol;
         private bool tlsHandshakeComplete = false;
         private bool tlsEnabled = false;
+
+        private DateTime lastReceiveTime = DateTime.UtcNow;
+
+        private bool connectionProtocolUpgraded = false;
 
         public HttpConnection(SpiderStudServer server)
         {
@@ -67,6 +71,28 @@ namespace SpiderStud.Http
             tlsHandshakeComplete = true;
         }
 
+        // called by server timer polling thread so we can check
+        // for connection timeouts and close the connection
+        public void TimerTick()
+        {
+            var currentTime = DateTime.UtcNow;
+
+            TimeSpan diff = currentTime - lastReceiveTime;
+
+            if (diff > server.HttpTimeoutSpan)
+            {
+                CloseConnection();
+            }
+        }
+
+        /// <summary>
+        /// Once a protocol upgrade has been triggered no further http parsing will occur on this connection
+        /// </summary>
+        public void TriggerProtocolUpgrade()
+        {
+            connectionProtocolUpgraded = true;
+        }
+
         private void InitTls()
         {
             if (ConnectedEndpoint != null && ConnectedEndpoint.Secure)
@@ -91,6 +117,7 @@ namespace SpiderStud.Http
             if (isClosing) return;
 
             InitTls();
+            lastReceiveTime = DateTime.UtcNow;
 
             sendEventArgs.StartReceive(clientSocket);
         }
@@ -181,6 +208,7 @@ namespace SpiderStud.Http
         public void OnReceiveComplete(Socket socket, SocketAsyncArgs e, int dataWritten)
         {
             receiveBuffer.Advance(dataWritten);
+            lastReceiveTime = DateTime.UtcNow;
         }
 
         // Called when send is completed
