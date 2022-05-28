@@ -57,11 +57,12 @@ namespace SpiderStud
         public void StartReceive(Socket socket)
         {
             // Set initial recieve buffer
-            SetBuffer(completionhandler.GetRecieveMemory(4096));
+            SetBuffer(completionhandler.GetRecieveMemory(8000));
 
             while (!socket.ReceiveAsync(this))
             {
                 completionhandler.OnReceiveComplete(socket, this, BytesTransferred);
+                SetBuffer(completionhandler.GetRecieveMemory(64)); // set buffer for next operation
             }
         }
 
@@ -80,6 +81,7 @@ namespace SpiderStud
                     do
                     {
                         completionhandler.OnReceiveComplete(e.ConnectSocket, this, BytesTransferred);
+                        SetBuffer(completionhandler.GetRecieveMemory(64)); // set buffer for next operation
                     }
                     while (!ConnectSocket.ReceiveAsync(this));
                     break;
