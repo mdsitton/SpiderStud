@@ -41,7 +41,7 @@ namespace SpiderStud
         internal static HttpResponse CreateHandshake(HttpRequest request)
         {
             // TODO - reuse dictionary instances to reduce allocation?
-            HttpResponse response = new HttpResponse(HttpStatusCode.SwitchingProtocols, headerDict.Value);
+            HttpResponse response = new HttpResponse(HttpStatusCode.SwitchingProtocols);
             response.Headers["Upgrade"] = "websocket";
             response.Headers["Sec-WebSocket-Accept"] = CreateResponseKey(request.Headers["Sec-WebSocket-Key"]);
             response.SetConnection(HttpHeaderConnection.Upgrade);
