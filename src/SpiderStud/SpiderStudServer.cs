@@ -70,6 +70,8 @@ namespace SpiderStud
 
         private Thread timerThread;
 
+        public bool Running => connectionWatchRunning;
+
         public SpiderStudServer(ServerConfig config)
         {
             this.config = config;
@@ -82,6 +84,10 @@ namespace SpiderStud
             }
             HttpTimeoutSpan = new TimeSpan(config.HttpConnectionTimeout * TimeSpan.TicksPerMillisecond);
             timerThread = new Thread(ConnectionWatchThread);
+            for (int i = 0; i < config.MaxConnections; ++i)
+            {
+                connectionPool.Enqueue(new HttpConnection(this));
+            }
         }
 
         public void Dispose()
@@ -137,6 +143,7 @@ namespace SpiderStud
             }
             connection.InitConnection(endpoint);
             acceptEventArg.UserToken = connection;
+            acceptEventArg.AcceptSocket = connection.ClientSocket;
 
             bool willTriggerCallback = socket.AcceptAsync(acceptEventArg);
 

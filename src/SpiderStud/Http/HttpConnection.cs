@@ -1,8 +1,10 @@
 using System;
 using System.Buffers;
+using System.Buffers.Text;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net.Sockets;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Org.BouncyCastle.Tls;
@@ -202,11 +204,19 @@ namespace SpiderStud.Http
 
         public Memory<byte> GetRecieveMemory(int size)
         {
+            Logging.Info($"Receive requested {size} bytes of memory");
             return receiveBuffer.GetMemory(size);
         }
 
-        public void SendResponse(HttpResponse response)
+        public void SendResponse(HttpResponse response, string? responseBody = null)
         {
+            int bodyLength = 0;
+            if (responseBody != null)
+            {
+                bodyLength = Encoding.UTF8.GetByteCount(responseBody);
+                response.Headers["Content-Type"] = "text/plain; charset=UTF-8";
+                response.Headers["Content-Length"] = bodyLength.ToString();
+            }
             IBufferWriter<byte>? writer;
 
             // wait until any active sending data is completed
@@ -215,6 +225,16 @@ namespace SpiderStud.Http
                 Thread.Sleep(1);
             }
             response.WriteResponseHeader(writer!);
+
+            // Write response body
+            if (responseBody != null)
+            {
+                Span<byte> tmpWrite = stackalloc byte[bodyLength];
+                Encoding.UTF8.GetBytes(responseBody, tmpWrite);
+                writer!.Write(tmpWrite);
+                writer!.Advance(bodyLength);
+            }
+
             CommitSend();
         }
 
@@ -223,6 +243,7 @@ namespace SpiderStud.Http
 
         public void OnReceiveComplete(Socket socket, SocketAsyncArgs e, int dataWritten)
         {
+            Logging.Info($"Receive complete {dataWritten} bytes");
             receiveBuffer.Advance(dataWritten);
             lastReceiveTime = DateTime.UtcNow;
             var currentWritten = receiveBuffer.WrittenSequence;

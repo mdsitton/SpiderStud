@@ -225,7 +225,7 @@ namespace SpiderStud.Buffers
 
         private SequenceSegment GetSegment(int sizeHint)
         {
-            if (sizeHint >= 0)
+            if (sizeHint < 0)
             {
                 throw new ArgumentOutOfRangeException(nameof(sizeHint));
             }

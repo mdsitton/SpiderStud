@@ -38,6 +38,7 @@ namespace SpiderStud
 
             return Convert.ToBase64String(hash);
         }
+
         internal static HttpResponse CreateHandshake(HttpRequest request)
         {
             // TODO - reuse dictionary instances to reduce allocation?

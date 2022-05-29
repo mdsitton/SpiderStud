@@ -18,7 +18,9 @@ namespace SpiderStud.Http
 
         public void OnGet(HttpRequest request, HttpConnection connection)
         {
+            HttpResponse response = new HttpResponse(HttpStatusCode.NotImplemented);
 
+            connection.SendResponse(response, "hello world!");
         }
 
         public void OnUnsupported(HttpRequest request, HttpConnection connection)

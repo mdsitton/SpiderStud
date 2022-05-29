@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Text;
+using SpiderStud.Http;
 
 namespace SpiderStud.Samples.ConsoleApp
 {
@@ -80,18 +81,23 @@ namespace SpiderStud.Samples.ConsoleApp
                 Endpoints = new List<SecureIPEndpoint> { new(System.Net.IPAddress.Any, 8181, false) }
             };
             var server = new SpiderStudServer(config);
-            server.WsService("/", ClientServiceHandler.Create);
+            server.HttpService("/", () => new DefaultHttpServiceHandler());
             server.Start();
 
-            var input = Console.ReadLine();
-            while (input != "exit")
+            while (server.Running)
             {
-                // foreach (var socket in allSockets.ToList())
-                // {
-                //     socket.Send(input);
-                // }
-                input = Console.ReadLine();
+                Thread.Sleep(1000);
             }
+
+            // var input = Console.ReadLine();
+            // while (input != "exit")
+            // {
+            //     // foreach (var socket in allSockets.ToList())
+            //     // {
+            //     //     socket.Send(input);
+            //     // }
+            //     input = Console.ReadLine();
+            // }
 
         }
     }
