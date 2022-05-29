@@ -197,6 +197,7 @@ namespace SpiderStud.Http
 
         public void OnDisconnectComplete(Socket socket, SocketAsyncArgs e)
         {
+            Logging.Info("Closing connection");
             tlsEnabled = false;
             tlsServer = null;
             tlsProtocol = null;

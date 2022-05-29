@@ -105,6 +105,8 @@ namespace SpiderStud
             OnClientConnect((HttpConnection)e.UserToken);
 
             // restart listening for this listener socket endpoint
+            // TODO - ConnectSocket will not have the correct socket that we need
+            // to restart listening, need to figure out a different way to do this
             return e.ConnectSocket.AcceptAsync(e);
         }
 
