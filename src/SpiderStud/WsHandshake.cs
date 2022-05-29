@@ -41,9 +41,10 @@ namespace SpiderStud
 
         internal static HttpResponse CreateHandshake(HttpRequest request)
         {
-            HttpResponse response = new HttpResponse(HttpStatusCode.SwitchingProtocols, HttpHeaderConnection.Upgrade);
+            HttpResponse response = new HttpResponse(HttpStatusCode.SwitchingProtocols);
             response.Headers["Upgrade"] = "websocket";
             response.Headers["Sec-WebSocket-Accept"] = CreateResponseKey(request.Headers["Sec-WebSocket-Key"]);
+            response.SetConnection(HttpHeaderConnection.Upgrade);
 
             return response;
         }

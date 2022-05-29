@@ -13,15 +13,19 @@ namespace SpiderStud.Http
         public string HttpVersionStr => versionStr;
         public HttpStatusCode StatusCode;
 
-        public Dictionary<string, string> Headers;
+        public IDictionary<string, string> Headers;
 
         const string seperator = ": ";
         const string newLine = "\r\n";
 
-        public HttpResponse(HttpStatusCode statusCode, HttpHeaderConnection connectionType = HttpHeaderConnection.Close)
+        public HttpResponse(HttpStatusCode statusCode, IDictionary<string, string> headers = null)
         {
-            Headers = new Dictionary<string, string>(StringComparer.InvariantCultureIgnoreCase);
+            Headers = headers ?? new Dictionary<string, string>(StringComparer.InvariantCultureIgnoreCase);
             StatusCode = statusCode;
+        }
+
+        public void SetConnection(HttpHeaderConnection connectionType)
+        {
             Headers["Connection"] = FastEnum.GetName(connectionType);
         }
 
@@ -32,9 +36,10 @@ namespace SpiderStud.Http
         {
             WriteHeaderStatusLine(writer);
 
-            foreach (var key in Headers.Keys)
+            var enumerate = Headers as IEnumerable<KeyValuePair<string, string>>;
+            foreach (var item in enumerate)
             {
-                WriteHeaderField(writer, key, Headers[key]);
+                WriteHeaderField(writer, item.Key, item.Value);
             }
             WriteEndOfHeader(writer);
         }

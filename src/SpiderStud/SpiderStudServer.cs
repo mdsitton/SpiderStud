@@ -224,7 +224,6 @@ namespace SpiderStud
             lock (connectionPool)
             {
                 connectionPool.Enqueue(connection);
-
             }
         }
 
