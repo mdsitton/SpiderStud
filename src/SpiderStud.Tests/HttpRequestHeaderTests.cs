@@ -6,7 +6,7 @@ using System;
 
 namespace SpiderStud.Tests
 {
-    public class HttpHeaderTests
+    public class HttpRequestHeaderTests
     {
         [Fact]
         public void ShouldReturnNullForEmptyBytes()
