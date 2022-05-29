@@ -22,13 +22,14 @@ namespace SpiderStud
         {
         }
 
-        public void OnRequest(HttpRequest request)
+        public bool OnRequest(HttpRequest request, HttpConnection connection)
         {
             // Validate handshake
 
             // Send back response
 
             // create new WebSocketConnection
+            return false; // Close connection
         }
     }
 }
