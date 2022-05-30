@@ -2,6 +2,7 @@ using System;
 using System.Buffers;
 using System.Buffers.Text;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Net.Sockets;
 using System.Text;
@@ -21,6 +22,7 @@ namespace SpiderStud.Http
 
         public SocketAsyncArgs sendEventArgs;
         public SocketAsyncArgs receiveEventArgs;
+        public SocketAsyncArgs disconnectEventArgs;
 
         public SequenceWriter sendBuffer = new SequenceWriter();
         public SequenceWriter receiveBuffer = new SequenceWriter();
@@ -52,9 +54,10 @@ namespace SpiderStud.Http
             clientSocket.LingerState = lingerState;
 
             // sendEventArgs will also be used for closing connection
-            sendEventArgs = new SocketAsyncArgs(this);
-            sendEventArgs.DisconnectReuseSocket = true;
-            receiveEventArgs = new SocketAsyncArgs(this);
+            sendEventArgs = new SocketAsyncArgs(this, clientSocket);
+            receiveEventArgs = new SocketAsyncArgs(this, clientSocket);
+            disconnectEventArgs = new SocketAsyncArgs(this, clientSocket);
+            disconnectEventArgs.DisconnectReuseSocket = true;
         }
 
         public void Dispose()
@@ -66,6 +69,7 @@ namespace SpiderStud.Http
         public void InitConnection(SecureIPEndpoint endpoint)
         {
             ConnectedEndpoint = endpoint;
+            isClosing = false;
         }
 
         public void OnHandshakeComplete()
@@ -75,7 +79,7 @@ namespace SpiderStud.Http
 
         // called by server timer polling thread so we can check
         // for connection timeouts and close the connection
-        public void TimerTick()
+        internal void TimerTick()
         {
             var currentTime = DateTime.UtcNow;
 
@@ -129,12 +133,7 @@ namespace SpiderStud.Http
             if (isClosing) return;
 
             isClosing = true;
-            // Disable send/receieve and ensure data is sent correctly
-            clientSocket.Shutdown(SocketShutdown.Both);
-            while (!clientSocket.DisconnectAsync(sendEventArgs))
-            {
-                OnDisconnectComplete(clientSocket, sendEventArgs);
-            }
+            disconnectEventArgs.StartDisconnect(clientSocket);
         }
 
         /// <summary>
@@ -195,20 +194,6 @@ namespace SpiderStud.Http
             CommitSend();
         }
 
-        public void OnDisconnectComplete(Socket socket, SocketAsyncArgs e)
-        {
-            Logging.Info("Closing connection");
-            tlsEnabled = false;
-            tlsServer = null;
-            tlsProtocol = null;
-        }
-
-        public Memory<byte> GetRecieveMemory(int size)
-        {
-            Logging.Info($"Receive requested {size} bytes of memory");
-            return receiveBuffer.GetMemory(size);
-        }
-
         public void SendResponse(HttpResponse response, string? responseBody = null)
         {
             int bodyLength = 0;
@@ -242,6 +227,12 @@ namespace SpiderStud.Http
         // Dictionary that is reused for processing headers
         private Dictionary<string, string> headers = new Dictionary<string, string>(StringComparer.InvariantCultureIgnoreCase);
 
+        public Memory<byte> GetRecieveMemory(int size)
+        {
+            Logging.Info($"Receive requested {size} bytes of memory");
+            return receiveBuffer.GetMemory(size);
+        }
+
         public void OnReceiveComplete(Socket socket, SocketAsyncArgs e, int dataWritten)
         {
             Logging.Info($"Receive complete {dataWritten} bytes");
@@ -256,6 +247,13 @@ namespace SpiderStud.Http
                     headers.Clear(); // clear headers obj
                     HttpRequest request = new HttpRequest(headers);
                     request.Parse(currentWritten.FirstSpan);
+
+                    // if (request.Headers.TryGetValue("Content-Length", out string lengthStr) &&
+                    //     int.TryParse(lengthStr, NumberStyles.None, null, out int length))
+                    // {
+
+
+                    // }
                     var requestHandler = server.GetService(request.Path);
                     if (requestHandler == null)
                     {
@@ -284,7 +282,21 @@ namespace SpiderStud.Http
 
         public void OnError(Socket socket, SocketError error, SocketAsyncArgs e)
         {
+            Logging.Info($"Error {error} closing");
             CloseConnection();
         }
+
+        public void OnDisconnectComplete(Socket socket, SocketAsyncArgs e)
+        {
+            Logging.Info("Closing connection");
+            tlsEnabled = false;
+            tlsServer = null;
+            tlsProtocol = null;
+            server.OnClientDisconnect(this);
+            isClosing = false;
+            // Clear any data segments
+            receiveBuffer.Reset();
+        }
+
     }
 }

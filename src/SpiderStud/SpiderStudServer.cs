@@ -51,7 +51,6 @@ namespace SpiderStud
 
     public partial class SpiderStudServer : IDisposable
     {
-        protected List<Socket> EndpointSockets = new List<Socket>();
         public bool SupportsDualStack => config.DualStackSupport;
         public IReadOnlyList<SecureIPEndpoint> Endpoints => config.Endpoints;
         public bool SocketRestartAfterListenError => config.SocketRestartAfterListenError;
@@ -79,8 +78,7 @@ namespace SpiderStud
 
             foreach (var endpoint in Endpoints)
             {
-                var sock = SocketUtils.CreateListenSocket(endpoint.Address, SupportsDualStack);
-                EndpointSockets.Add(sock);
+                endpoint.socketInstance = SocketUtils.CreateListenSocket(endpoint.Address, SupportsDualStack);
             }
             HttpTimeoutSpan = new TimeSpan(config.HttpConnectionTimeout * TimeSpan.TicksPerMillisecond);
             timerThread = new Thread(ConnectionWatchThread);
@@ -93,35 +91,42 @@ namespace SpiderStud
         public void Dispose()
         {
             connectionWatchRunning = false;
-            foreach (var socket in EndpointSockets)
+            foreach (var endpoint in Endpoints)
             {
-                socket.Dispose();
+                endpoint.socketInstance?.Dispose();
             }
         }
 
         private bool ProcessAccept(SocketAsyncEventArgs e)
         {
+            var connection = (HttpConnection)e.UserToken;
             // This handles reading data from the new client socket
-            OnClientConnect((HttpConnection)e.UserToken);
+            OnClientConnect(connection);
+
+            if (connection?.ConnectedEndpoint == null)
+                return true;
 
             // restart listening for this listener socket endpoint
             // TODO - ConnectSocket will not have the correct socket that we need
             // to restart listening, need to figure out a different way to do this
-            return e.ConnectSocket.AcceptAsync(e);
+            return DoAccept(connection.ConnectedEndpoint, e);
         }
 
         // This method is the callback method associated with Socket.AcceptAsync
         // operations and is invoked when an accept operation is complete
         private void OnAcceptCompleted(object sender, SocketAsyncEventArgs e)
         {
+            Logging.Debug("OnAcceptComplete");
             // need to repeat until we have triggered a delayed request
             while (!ProcessAccept(e)) ;
         }
 
-        private void StartSocket(int socketIndex)
+        private void StartSocket(SecureIPEndpoint endpoint)
         {
-            var socket = EndpointSockets[socketIndex];
-            var endpoint = Endpoints[socketIndex];
+            var socket = endpoint.socketInstance;
+            if (socket == null)
+                return;
+
             socket.Bind(endpoint);
             socket.Listen(config.RequestBacklogSize);
 
@@ -137,6 +142,17 @@ namespace SpiderStud
             SocketAsyncEventArgs acceptEventArg = new SocketAsyncEventArgs();
             acceptEventArg.Completed += new EventHandler<SocketAsyncEventArgs>(OnAcceptCompleted);
 
+
+            if (!DoAccept(endpoint, acceptEventArg))
+            {
+                // need to repeat until we have triggered a delayed request
+                while (!ProcessAccept(acceptEventArg)) ;
+            }
+
+        }
+
+        private bool DoAccept(SecureIPEndpoint endpoint, SocketAsyncEventArgs acceptEventArg)
+        {
             HttpConnection connection;
 
             lock (connectionPool)
@@ -147,31 +163,27 @@ namespace SpiderStud
             acceptEventArg.UserToken = connection;
             acceptEventArg.AcceptSocket = connection.ClientSocket;
 
-            bool willTriggerCallback = socket.AcceptAsync(acceptEventArg);
+            var rtn = endpoint.socketInstance!.AcceptAsync(acceptEventArg);
 
-            if (!willTriggerCallback)
-            {
-                // need to repeat until we have triggered a delayed request
-                while (!ProcessAccept(acceptEventArg)) ;
-            }
+            return rtn;
         }
 
         private void StartSockets()
         {
-            for (int i = 0; i < EndpointSockets.Count; ++i)
+            foreach (var endpoint in Endpoints)
             {
                 try
                 {
-                    StartSocket(i);
+                    StartSocket(endpoint);
                 }
                 catch (Exception e)
                 {
-                    TryRecoverSocket(i, e);
+                    TryRecoverSocket(endpoint, e);
                 }
             }
         }
 
-        private void TryRecoverSocket(int socketIndex, Exception e)
+        private void TryRecoverSocket(SecureIPEndpoint endpoint, Exception e)
         {
             Logging.Error("Listener socket is closed", e);
             if (SocketRestartAfterListenError)
@@ -179,10 +191,9 @@ namespace SpiderStud
                 Logging.Info("Listener socket restarting");
                 try
                 {
-                    var endpoint = Endpoints[socketIndex];
-                    EndpointSockets[socketIndex].Dispose();
-                    EndpointSockets[socketIndex] = SocketUtils.CreateListenSocket(endpoint.Address, SupportsDualStack);
-                    StartSocket(socketIndex);
+                    endpoint.socketInstance?.Dispose();
+                    endpoint.socketInstance = SocketUtils.CreateListenSocket(endpoint.Address, SupportsDualStack);
+                    StartSocket(endpoint);
                     Logging.Info("Listener socket restarted");
                 }
                 catch (Exception ex)
@@ -229,7 +240,10 @@ namespace SpiderStud
         // Called after a client 
         internal void OnClientDisconnect(HttpConnection connection)
         {
-
+            lock (activeConnections)
+            {
+                activeConnections.Remove(connection);
+            }
             lock (connectionPool)
             {
                 connectionPool.Enqueue(connection);

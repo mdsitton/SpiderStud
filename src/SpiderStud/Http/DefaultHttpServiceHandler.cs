@@ -18,7 +18,8 @@ namespace SpiderStud.Http
 
         public void OnGet(HttpRequest request, HttpConnection connection)
         {
-            HttpResponse response = new HttpResponse(HttpStatusCode.NotImplemented);
+            HttpResponse response = new HttpResponse(HttpStatusCode.Ok);
+            response.SetConnection(HttpHeaderConnection.Close);
 
             connection.SendResponse(response, "hello world!");
         }
@@ -26,6 +27,7 @@ namespace SpiderStud.Http
         public void OnUnsupported(HttpRequest request, HttpConnection connection)
         {
             HttpResponse response = new HttpResponse(HttpStatusCode.NotImplemented);
+            response.SetConnection(HttpHeaderConnection.Close);
             connection.SendResponse(response);
         }
 

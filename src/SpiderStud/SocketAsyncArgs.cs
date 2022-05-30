@@ -13,12 +13,14 @@ namespace SpiderStud
     public class SocketAsyncArgs : SocketAsyncEventArgs
     {
         readonly IAsyncSocketHandler completionhandler;
+        readonly Socket clientSocket;
 
         SequenceOwner sendSequence = default;
 
-        public SocketAsyncArgs(IAsyncSocketHandler handler)
+        public SocketAsyncArgs(IAsyncSocketHandler handler, Socket socket)
         {
             completionhandler = handler;
+            clientSocket = socket;
         }
 
         public Span<byte> TransferedData => MemoryBuffer.Span.Slice(Offset, BytesTransferred);
@@ -39,6 +41,7 @@ namespace SpiderStud
 
             while (sendSequence.Current != null && !socket.SendAsync(this))
             {
+                Logging.Debug("Send immediate");
                 SetBufferToCurrentSegment();
                 sendSequence.AdvanceCurrentSegment();
             }
@@ -61,29 +64,52 @@ namespace SpiderStud
 
             while (!socket.ReceiveAsync(this))
             {
+                Logging.Debug("Receive immediate");
+                if (SocketError != SocketError.Success || BytesTransferred == 0)
+                {
+                    Logging.Debug($"Error {SocketError} bytes read {BytesTransferred}");
+                    return;
+                }
                 completionhandler.OnReceiveComplete(socket, this, BytesTransferred);
                 SetBuffer(completionhandler.GetRecieveMemory(64)); // set buffer for next operation
             }
         }
 
+        public void StartDisconnect(Socket socket)
+        {
+            // Disable send/receieve and ensure data is sent correctly
+            socket.Shutdown(SocketShutdown.Both);
+            while (!socket.DisconnectAsync(this))
+            {
+                Logging.Debug("Disconnect immediate");
+                completionhandler.OnDisconnectComplete(socket, this);
+            }
+        }
+
         protected override void OnCompleted(SocketAsyncEventArgs e)
         {
-            if (e.SocketError != SocketError.Success)
+            if (SocketError != SocketError.Success)
             {
-                completionhandler.OnError(e.ConnectSocket, e.SocketError, this);
+                completionhandler.OnError(clientSocket, SocketError, this);
             }
 
             // determine which type of operation just completed and call the associated handler
-            switch (e.LastOperation)
+            switch (LastOperation)
             {
                 case SocketAsyncOperation.Receive:
                     // re-schedule next read and handle any syncrously completed events
                     do
                     {
-                        completionhandler.OnReceiveComplete(e.ConnectSocket, this, BytesTransferred);
+                        Logging.Debug("OnCompleted Receive immediate");
+                        if (SocketError != SocketError.Success || BytesTransferred == 0)
+                        {
+                            Logging.Debug($"{SocketError} bytes read {BytesTransferred}");
+                            return;
+                        }
+                        completionhandler.OnReceiveComplete(clientSocket, this, BytesTransferred);
                         SetBuffer(completionhandler.GetRecieveMemory(64)); // set buffer for next operation
                     }
-                    while (!ConnectSocket.ReceiveAsync(this));
+                    while (!clientSocket.ReceiveAsync(this));
                     break;
                 case SocketAsyncOperation.Send:
                     // re-schedule next write and handle any syncrously completed events
@@ -92,12 +118,12 @@ namespace SpiderStud
                         SetBufferToCurrentSegment();
                         sendSequence.AdvanceCurrentSegment();
                     }
-                    while (sendSequence.Current != null && !ConnectSocket.SendAsync(this));
+                    while (sendSequence.Current != null && !clientSocket.SendAsync(this));
 
                     if (sendSequence.Current == null)
                     {
                         // Notify handler when the full sequence send has completed so it can send the next sequence
-                        completionhandler.OnSendComplete(e.ConnectSocket, this);
+                        completionhandler.OnSendComplete(clientSocket, this);
 
                         // Dispose of sequence, clear instance, and return since there is no more data to send
                         sendSequence.Dispose();
@@ -105,7 +131,7 @@ namespace SpiderStud
                     }
                     break;
                 case SocketAsyncOperation.Disconnect:
-                    completionhandler.OnDisconnectComplete(e.ConnectSocket, this);
+                    completionhandler.OnDisconnectComplete(clientSocket, this);
                     break;
             }
         }

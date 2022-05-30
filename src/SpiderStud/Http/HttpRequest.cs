@@ -85,7 +85,6 @@ namespace SpiderStud.Http
 
             Method = Encoding.ASCII.GetString(line.Slice(0, nextWhiteSpace));
             line = line.Slice(endOfWhiteSpace);
-            Console.WriteLine(Method);
 
             // Path string
             nextWhiteSpace = line.IndexOfAny(whitespaceSpan);
@@ -96,7 +95,7 @@ namespace SpiderStud.Http
 
             Path = Encoding.ASCII.GetString(line.Slice(0, nextWhiteSpace));
             line = line.Slice(endOfWhiteSpace);
-            Console.WriteLine(Path);
+            Logging.Info($"{Method} {Path}");
 
             // http version string
             HttpVersionStr = Encoding.ASCII.GetString(line);
@@ -138,6 +137,7 @@ namespace SpiderStud.Http
             }
 
             Headers.Add(key, value);
+            // Logging.Info($"{key} {value}");
 
             return true;
         }

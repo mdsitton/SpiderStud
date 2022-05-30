@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net;
+using System.Net.Sockets;
 using System.Threading.Tasks;
 
 namespace SpiderStud
@@ -12,6 +13,8 @@ namespace SpiderStud
         /// If true this endpoint will be utilizing a secure socket
         /// </summary>
         public bool Secure { get; private set; }
+
+        internal Socket? socketInstance;
 
         /// <summary>
         /// Creates a new instance of the SecureIPEndpoint class with the specified address and port.

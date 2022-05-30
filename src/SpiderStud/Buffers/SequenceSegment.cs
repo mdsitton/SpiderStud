@@ -54,7 +54,9 @@ namespace SpiderStud
         /// Gets the amount of writable bytes in this segment.
         /// It is the amount of bytes between <see cref="Length"/> and <see cref="End"/>.
         /// </summary>
-        internal int WritableBytes => AvailableMemory.Length - End;
+        internal int WritableBytes => IsActive ? AvailableMemory.Length - End : 0;
+
+        internal bool IsActive { get; private set; }
 
         private IMemoryOwner<byte>? memoryOwner;
 
@@ -75,6 +77,7 @@ namespace SpiderStud
         {
             this.memoryOwner = memoryOwner;
             Memory = memoryOwner.Memory;
+            IsActive = true;
         }
 
         /// <summary>
@@ -82,6 +85,7 @@ namespace SpiderStud
         /// </summary>
         internal void ResetMemory()
         {
+            IsActive = false;
             Memory = default;
             Next = null;
             RunningIndex = 0;

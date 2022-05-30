@@ -12,7 +12,7 @@ namespace SpiderStud
     }
     public class Logging
     {
-        public static LogLevel Level = LogLevel.Info;
+        public static LogLevel Level = LogLevel.Debug;
 
         public static Action<LogLevel, string, Exception?> LogAction = (level, message, ex) =>
         {
