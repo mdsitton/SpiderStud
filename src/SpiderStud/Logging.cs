@@ -21,6 +21,7 @@ namespace SpiderStud
             Console.WriteLine(message);
         };
 
+        [ThreadStatic]
         private static StringBuilder builder = new StringBuilder();
         public static void FormatPrefix(LogLevel level)
         {
@@ -29,6 +30,10 @@ namespace SpiderStud
 
         public static void Exception(Exception e, string? message)
         {
+
+            if (builder == null)
+                builder = new StringBuilder();
+
             builder.Clear();
             FormatPrefix(LogLevel.Exception);
             builder.Append(message ?? e.Message);
@@ -40,6 +45,10 @@ namespace SpiderStud
         {
             if (Level > LogLevel.Warn)
                 return;
+
+            if (builder == null)
+                builder = new StringBuilder();
+
             builder.Clear();
             FormatPrefix(LogLevel.Warn);
             builder.Append(message);
@@ -50,6 +59,10 @@ namespace SpiderStud
         {
             if (Level > LogLevel.Error)
                 return;
+
+            if (builder == null)
+                builder = new StringBuilder();
+
             builder.Clear();
             FormatPrefix(LogLevel.Error);
             builder.Append(message);
@@ -61,17 +74,25 @@ namespace SpiderStud
         {
             if (Level > LogLevel.Debug)
                 return;
+
+            if (builder == null)
+                builder = new StringBuilder();
+
             builder.Clear();
             FormatPrefix(LogLevel.Debug);
             builder.Append(message);
             LogAction?.Invoke(builder.ToString());
         }
 
-        // [Conditional("DEBUG")]
+        [Conditional("DEBUG")]
         public static void Info(string message)
         {
             if (Level > LogLevel.Info)
                 return;
+
+            if (builder == null)
+                builder = new StringBuilder();
+
             builder.Clear();
             FormatPrefix(LogLevel.Info);
             builder.Append(message);
@@ -79,10 +100,15 @@ namespace SpiderStud
             LogAction?.Invoke(builder.ToString());
         }
 
+        [Conditional("DEBUG")]
         public static void Info<T1>(string format, T1 value)
         {
             if (Level > LogLevel.Info)
                 return;
+
+
+            if (builder == null)
+                builder = new StringBuilder();
 
             builder.Clear();
             FormatPrefix(LogLevel.Info);
@@ -91,10 +117,15 @@ namespace SpiderStud
             LogAction?.Invoke(builder.ToString());
         }
 
+        [Conditional("DEBUG")]
         public static void Info<T1, T2>(string format, T1 value, T2 value2)
         {
             if (Level > LogLevel.Info)
                 return;
+
+
+            if (builder == null)
+                builder = new StringBuilder();
 
             builder.Clear();
             FormatPrefix(LogLevel.Info);
@@ -103,10 +134,15 @@ namespace SpiderStud
             LogAction?.Invoke(builder.ToString());
         }
 
+        [Conditional("DEBUG")]
         public static void Info<T1, T2, T3>(string format, T1 value, T2 value2, T3 value3)
         {
             if (Level > LogLevel.Info)
                 return;
+
+
+            if (builder == null)
+                builder = new StringBuilder();
 
             builder.Clear();
             FormatPrefix(LogLevel.Info);
@@ -115,10 +151,15 @@ namespace SpiderStud
             LogAction?.Invoke(builder.ToString());
         }
 
+        [Conditional("DEBUG")]
         public static void Info<T1, T2, T3, T4>(string format, T1 value, T2 value2, T3 value3, T4 value4)
         {
             if (Level > LogLevel.Info)
                 return;
+
+
+            if (builder == null)
+                builder = new StringBuilder();
 
             builder.Clear();
             FormatPrefix(LogLevel.Info);
@@ -127,10 +168,15 @@ namespace SpiderStud
             LogAction?.Invoke(builder.ToString());
         }
 
+        [Conditional("DEBUG")]
         public static void Debug<T1>(string format, T1 value)
         {
             if (Level > LogLevel.Debug)
                 return;
+
+
+            if (builder == null)
+                builder = new StringBuilder();
 
             builder.Clear();
             FormatPrefix(LogLevel.Debug);
@@ -139,10 +185,15 @@ namespace SpiderStud
             LogAction?.Invoke(builder.ToString());
         }
 
+        [Conditional("DEBUG")]
         public static void Debug<T1, T2>(string format, T1 value, T2 value2)
         {
             if (Level > LogLevel.Debug)
                 return;
+
+
+            if (builder == null)
+                builder = new StringBuilder();
 
             builder.Clear();
             FormatPrefix(LogLevel.Debug);
@@ -151,10 +202,15 @@ namespace SpiderStud
             LogAction?.Invoke(builder.ToString());
         }
 
+        [Conditional("DEBUG")]
         public static void Debug<T1, T2, T3>(string format, T1 value, T2 value2, T3 value3)
         {
             if (Level > LogLevel.Debug)
                 return;
+
+
+            if (builder == null)
+                builder = new StringBuilder();
 
             builder.Clear();
             FormatPrefix(LogLevel.Debug);
@@ -163,10 +219,15 @@ namespace SpiderStud
             LogAction?.Invoke(builder.ToString());
         }
 
+        [Conditional("DEBUG")]
         public static void Debug<T1, T2, T3, T4>(string format, T1 value, T2 value2, T3 value3, T4 value4)
         {
             if (Level > LogLevel.Debug)
                 return;
+
+
+            if (builder == null)
+                builder = new StringBuilder();
 
             builder.Clear();
             FormatPrefix(LogLevel.Debug);
@@ -180,6 +241,10 @@ namespace SpiderStud
             if (Level > LogLevel.Warn)
                 return;
 
+
+            if (builder == null)
+                builder = new StringBuilder();
+
             builder.Clear();
             FormatPrefix(LogLevel.Warn);
             builder.AppendFormat(format, value);
@@ -191,6 +256,10 @@ namespace SpiderStud
         {
             if (Level > LogLevel.Warn)
                 return;
+
+
+            if (builder == null)
+                builder = new StringBuilder();
 
             builder.Clear();
             FormatPrefix(LogLevel.Warn);
@@ -204,6 +273,10 @@ namespace SpiderStud
             if (Level > LogLevel.Warn)
                 return;
 
+
+            if (builder == null)
+                builder = new StringBuilder();
+
             builder.Clear();
             FormatPrefix(LogLevel.Warn);
             builder.AppendFormat(format, value, value2, value3);
@@ -215,6 +288,10 @@ namespace SpiderStud
         {
             if (Level > LogLevel.Warn)
                 return;
+
+
+            if (builder == null)
+                builder = new StringBuilder();
 
             builder.Clear();
             FormatPrefix(LogLevel.Warn);
@@ -228,6 +305,10 @@ namespace SpiderStud
             if (Level > LogLevel.Error)
                 return;
 
+
+            if (builder == null)
+                builder = new StringBuilder();
+
             builder.Clear();
             FormatPrefix(LogLevel.Error);
             builder.AppendFormat(format, value);
@@ -239,6 +320,10 @@ namespace SpiderStud
         {
             if (Level > LogLevel.Error)
                 return;
+
+
+            if (builder == null)
+                builder = new StringBuilder();
 
             builder.Clear();
             FormatPrefix(LogLevel.Error);
@@ -252,6 +337,10 @@ namespace SpiderStud
             if (Level > LogLevel.Error)
                 return;
 
+
+            if (builder == null)
+                builder = new StringBuilder();
+
             builder.Clear();
             FormatPrefix(LogLevel.Error);
             builder.AppendFormat(format, value, value2, value3);
@@ -263,6 +352,10 @@ namespace SpiderStud
         {
             if (Level > LogLevel.Error)
                 return;
+
+
+            if (builder == null)
+                builder = new StringBuilder();
 
             builder.Clear();
             FormatPrefix(LogLevel.Error);
