@@ -136,7 +136,7 @@ namespace SpiderStud
                 {
                     Logging.Warn("Socket not listening on correct port");
                 }
-                Logging.Info($"Server now listening at {localEndpoint.Address} (actual port {localEndpoint.Port})");
+                Logging.Info("Server now listening at {0} (actual port {1})", localEndpoint.Address, localEndpoint.Port);
             }
 
             SocketAsyncEventArgs acceptEventArg = new SocketAsyncEventArgs();
@@ -185,7 +185,7 @@ namespace SpiderStud
 
         private void TryRecoverSocket(SecureIPEndpoint endpoint, Exception e)
         {
-            Logging.Error("Listener socket is closed", e);
+            Logging.Exception(e, "Listener socket is closed");
             if (SocketRestartAfterListenError)
             {
                 Logging.Info("Listener socket restarting");
@@ -198,7 +198,7 @@ namespace SpiderStud
                 }
                 catch (Exception ex)
                 {
-                    Logging.Error("Listener could not be restarted", ex);
+                    Logging.Exception(ex, "Listener could not be restarted");
                 }
             }
         }

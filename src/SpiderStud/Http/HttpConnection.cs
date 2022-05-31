@@ -229,13 +229,13 @@ namespace SpiderStud.Http
 
         public Memory<byte> GetRecieveMemory(int size)
         {
-            Logging.Info($"Receive requested {size} bytes of memory");
+            Logging.Info("Receive requested {0} bytes of memory", size);
             return receiveBuffer.GetMemory(size);
         }
 
         public void OnReceiveComplete(Socket socket, SocketAsyncArgs e, int dataWritten)
         {
-            Logging.Info($"Receive complete {dataWritten} bytes");
+            Logging.Info("Receive complete {0} bytes", dataWritten);
             receiveBuffer.Advance(dataWritten);
             lastReceiveTime = DateTime.UtcNow;
             var currentWritten = receiveBuffer.WrittenSequence;
@@ -282,7 +282,7 @@ namespace SpiderStud.Http
 
         public void OnError(Socket socket, SocketError error, SocketAsyncArgs e)
         {
-            Logging.Info($"Error {error} closing");
+            Logging.Error("Error {0} closing", error);
             CloseConnection();
         }
 

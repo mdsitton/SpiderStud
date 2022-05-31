@@ -1,5 +1,6 @@
 using System;
 using System.Diagnostics;
+using System.Text;
 
 namespace SpiderStud
 {
@@ -9,40 +10,265 @@ namespace SpiderStud
         Info,
         Warn,
         Error,
+        Exception,
     }
     public class Logging
     {
         public static LogLevel Level = LogLevel.Debug;
 
-        public static Action<LogLevel, string, Exception?> LogAction = (level, message, ex) =>
+        public static Action<string> LogAction = (message) =>
         {
-            Console.WriteLine("{0} [{1}] {2} {3}", DateTime.Now, level, message, ex);
+            Console.WriteLine(message);
         };
 
-        public static void Warn(string message, Exception ex = null)
+        private static StringBuilder builder = new StringBuilder();
+        public static void FormatPrefix(LogLevel level)
         {
-            if (Level <= LogLevel.Warn)
-                LogAction?.Invoke(LogLevel.Warn, message, ex);
+            builder.AppendFormat("{0} [{1}] ", DateTime.Now, level);
         }
 
-        public static void Error(string message, Exception ex = null)
+        public static void Exception(Exception e, string? message)
         {
-            if (Level <= LogLevel.Error)
-                LogAction?.Invoke(LogLevel.Error, message, ex);
+            builder.Clear();
+            FormatPrefix(LogLevel.Exception);
+            builder.Append(message ?? e.Message);
+            builder.AppendLine($"{e}");
+            LogAction?.Invoke(builder.ToString());
+        }
+
+        public static void Warn(string message)
+        {
+            if (Level > LogLevel.Warn)
+                return;
+            builder.Clear();
+            FormatPrefix(LogLevel.Warn);
+            builder.Append(message);
+            LogAction?.Invoke(builder.ToString());
+        }
+
+        public static void Error(string message)
+        {
+            if (Level > LogLevel.Error)
+                return;
+            builder.Clear();
+            FormatPrefix(LogLevel.Error);
+            builder.Append(message);
+            LogAction?.Invoke(builder.ToString());
         }
 
         [Conditional("DEBUG")]
-        public static void Debug(string message, Exception ex = null)
+        public static void Debug(string message)
         {
-            if (Level <= LogLevel.Debug)
-                LogAction?.Invoke(LogLevel.Debug, message, ex);
+            if (Level > LogLevel.Debug)
+                return;
+            builder.Clear();
+            FormatPrefix(LogLevel.Debug);
+            builder.Append(message);
+            LogAction?.Invoke(builder.ToString());
         }
 
-        [Conditional("DEBUG")]
-        public static void Info(string message, Exception ex = null)
+        // [Conditional("DEBUG")]
+        public static void Info(string message)
         {
-            if (Level <= LogLevel.Info)
-                LogAction?.Invoke(LogLevel.Info, message, ex);
+            if (Level > LogLevel.Info)
+                return;
+            builder.Clear();
+            FormatPrefix(LogLevel.Info);
+            builder.Append(message);
+
+            LogAction?.Invoke(builder.ToString());
+        }
+
+        public static void Info<T1>(string format, T1 value)
+        {
+            if (Level > LogLevel.Info)
+                return;
+
+            builder.Clear();
+            FormatPrefix(LogLevel.Info);
+            builder.AppendFormat(format, value);
+
+            LogAction?.Invoke(builder.ToString());
+        }
+
+        public static void Info<T1, T2>(string format, T1 value, T2 value2)
+        {
+            if (Level > LogLevel.Info)
+                return;
+
+            builder.Clear();
+            FormatPrefix(LogLevel.Info);
+            builder.AppendFormat(format, value, value2);
+
+            LogAction?.Invoke(builder.ToString());
+        }
+
+        public static void Info<T1, T2, T3>(string format, T1 value, T2 value2, T3 value3)
+        {
+            if (Level > LogLevel.Info)
+                return;
+
+            builder.Clear();
+            FormatPrefix(LogLevel.Info);
+            builder.AppendFormat(format, value, value2, value3);
+
+            LogAction?.Invoke(builder.ToString());
+        }
+
+        public static void Info<T1, T2, T3, T4>(string format, T1 value, T2 value2, T3 value3, T4 value4)
+        {
+            if (Level > LogLevel.Info)
+                return;
+
+            builder.Clear();
+            FormatPrefix(LogLevel.Info);
+            builder.AppendFormat(format, value, value2, value3, value4);
+
+            LogAction?.Invoke(builder.ToString());
+        }
+
+        public static void Debug<T1>(string format, T1 value)
+        {
+            if (Level > LogLevel.Debug)
+                return;
+
+            builder.Clear();
+            FormatPrefix(LogLevel.Debug);
+            builder.AppendFormat(format, value);
+
+            LogAction?.Invoke(builder.ToString());
+        }
+
+        public static void Debug<T1, T2>(string format, T1 value, T2 value2)
+        {
+            if (Level > LogLevel.Debug)
+                return;
+
+            builder.Clear();
+            FormatPrefix(LogLevel.Debug);
+            builder.AppendFormat(format, value, value2);
+
+            LogAction?.Invoke(builder.ToString());
+        }
+
+        public static void Debug<T1, T2, T3>(string format, T1 value, T2 value2, T3 value3)
+        {
+            if (Level > LogLevel.Debug)
+                return;
+
+            builder.Clear();
+            FormatPrefix(LogLevel.Debug);
+            builder.AppendFormat(format, value, value2, value3);
+
+            LogAction?.Invoke(builder.ToString());
+        }
+
+        public static void Debug<T1, T2, T3, T4>(string format, T1 value, T2 value2, T3 value3, T4 value4)
+        {
+            if (Level > LogLevel.Debug)
+                return;
+
+            builder.Clear();
+            FormatPrefix(LogLevel.Debug);
+            builder.AppendFormat(format, value, value2, value3, value4);
+
+            LogAction?.Invoke(builder.ToString());
+        }
+
+        public static void Warn<T1>(string format, T1 value)
+        {
+            if (Level > LogLevel.Warn)
+                return;
+
+            builder.Clear();
+            FormatPrefix(LogLevel.Warn);
+            builder.AppendFormat(format, value);
+
+            LogAction?.Invoke(builder.ToString());
+        }
+
+        public static void Warn<T1, T2>(string format, T1 value, T2 value2)
+        {
+            if (Level > LogLevel.Warn)
+                return;
+
+            builder.Clear();
+            FormatPrefix(LogLevel.Warn);
+            builder.AppendFormat(format, value, value2);
+
+            LogAction?.Invoke(builder.ToString());
+        }
+
+        public static void Warn<T1, T2, T3>(string format, T1 value, T2 value2, T3 value3)
+        {
+            if (Level > LogLevel.Warn)
+                return;
+
+            builder.Clear();
+            FormatPrefix(LogLevel.Warn);
+            builder.AppendFormat(format, value, value2, value3);
+
+            LogAction?.Invoke(builder.ToString());
+        }
+
+        public static void Warn<T1, T2, T3, T4>(string format, T1 value, T2 value2, T3 value3, T4 value4)
+        {
+            if (Level > LogLevel.Warn)
+                return;
+
+            builder.Clear();
+            FormatPrefix(LogLevel.Warn);
+            builder.AppendFormat(format, value, value2, value3, value4);
+
+            LogAction?.Invoke(builder.ToString());
+        }
+
+        public static void Error<T1>(string format, T1 value)
+        {
+            if (Level > LogLevel.Error)
+                return;
+
+            builder.Clear();
+            FormatPrefix(LogLevel.Error);
+            builder.AppendFormat(format, value);
+
+            LogAction?.Invoke(builder.ToString());
+        }
+
+        public static void Error<T1, T2>(string format, T1 value, T2 value2)
+        {
+            if (Level > LogLevel.Error)
+                return;
+
+            builder.Clear();
+            FormatPrefix(LogLevel.Error);
+            builder.AppendFormat(format, value, value2);
+
+            LogAction?.Invoke(builder.ToString());
+        }
+
+        public static void Error<T1, T2, T3>(string format, T1 value, T2 value2, T3 value3)
+        {
+            if (Level > LogLevel.Error)
+                return;
+
+            builder.Clear();
+            FormatPrefix(LogLevel.Error);
+            builder.AppendFormat(format, value, value2, value3);
+
+            LogAction?.Invoke(builder.ToString());
+        }
+
+        public static void Error<T1, T2, T3, T4>(string format, T1 value, T2 value2, T3 value3, T4 value4)
+        {
+            if (Level > LogLevel.Error)
+                return;
+
+            builder.Clear();
+            FormatPrefix(LogLevel.Error);
+            builder.AppendFormat(format, value, value2, value3, value4);
+
+            LogAction?.Invoke(builder.ToString());
         }
     }
 }
