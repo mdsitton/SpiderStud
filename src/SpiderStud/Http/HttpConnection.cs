@@ -292,6 +292,7 @@ namespace SpiderStud.Http
             tlsEnabled = false;
             tlsServer = null;
             tlsProtocol = null;
+            sendState = SEND_IDLE;
             server.OnClientDisconnect(this);
             isClosing = false;
             // Clear any data segments
