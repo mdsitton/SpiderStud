@@ -8,6 +8,7 @@ using System.Threading;
 using System.Collections.Generic;
 using SpiderStud.Http;
 using SpiderStud.Tls;
+using System.Collections.Concurrent;
 
 namespace SpiderStud
 {
@@ -57,9 +58,9 @@ namespace SpiderStud
         public bool IsSecureSupported => config.Certificate != null;
 
         // We use a Queue of connections so that reused sockets have time to linger and fully close
-        private readonly Queue<HttpConnection> connectionPool = new Queue<HttpConnection>();
+        private readonly List<HttpConnection> connections = new List<HttpConnection>();
 
-        private readonly List<HttpConnection> activeConnections = new List<HttpConnection>();
+        private readonly ConcurrentQueue<HttpConnection> freeConnections = new ConcurrentQueue<HttpConnection>();
 
         private readonly Dictionary<string, HttpServiceHandlerFactory> serviceFactories = new Dictionary<string, HttpServiceHandlerFactory>();
         internal readonly ServerConfig config;
@@ -84,7 +85,7 @@ namespace SpiderStud
             timerThread = new Thread(ConnectionWatchThread);
             for (int i = 0; i < config.MaxConnections; ++i)
             {
-                connectionPool.Enqueue(new HttpConnection(this));
+                connections.Add(new HttpConnection(this));
             }
         }
 
@@ -116,7 +117,6 @@ namespace SpiderStud
         // operations and is invoked when an accept operation is complete
         private void OnAcceptCompleted(object sender, SocketAsyncEventArgs e)
         {
-            Logging.Debug("OnAcceptComplete");
             // need to repeat until we have triggered a delayed request
             while (!ProcessAccept(e)) ;
         }
@@ -142,22 +142,21 @@ namespace SpiderStud
             SocketAsyncEventArgs acceptEventArg = new SocketAsyncEventArgs();
             acceptEventArg.Completed += new EventHandler<SocketAsyncEventArgs>(OnAcceptCompleted);
 
-
             if (!DoAccept(endpoint, acceptEventArg))
             {
                 // need to repeat until we have triggered a delayed request
                 while (!ProcessAccept(acceptEventArg)) ;
             }
-
         }
 
         private bool DoAccept(SecureIPEndpoint endpoint, SocketAsyncEventArgs acceptEventArg)
         {
-            HttpConnection connection;
+            HttpConnection? connection = FindUnusedConnection();
 
-            lock (connectionPool)
+            while (connection == null)
             {
-                connection = connectionPool.Dequeue();
+                Thread.Sleep(5);
+                connection = FindUnusedConnection();
             }
             connection.InitConnection(endpoint);
             acceptEventArg.UserToken = connection;
@@ -234,30 +233,39 @@ namespace SpiderStud
 
             StartSockets();
             timerThread.Start();
+        }
 
+        internal HttpConnection? FindUnusedConnection()
+        {
+            if (freeConnections.TryDequeue(out HttpConnection connection) && connection.ClientSocket.Connected != true)
+            {
+                Logging.Debug("Reused free connection");
+                connection.isClaimed = true;
+                return connection;
+            }
+            foreach (var conn in connections)
+            {
+                if (conn.ClientSocket.Connected != true && !conn.isClaimed)
+                {
+                    Logging.Debug("Searched for available connection");
+                    conn.isClaimed = true;
+                    return conn;
+                }
+            }
+
+            return null;
         }
 
         // Called after a client 
         internal void OnClientDisconnect(HttpConnection connection)
         {
-            lock (activeConnections)
-            {
-                activeConnections.Remove(connection);
-            }
-            lock (connectionPool)
-            {
-                connectionPool.Enqueue(connection);
-            }
+            connection.isClaimed = false;
+            freeConnections.Enqueue(connection);
         }
 
         private void OnClientConnect(HttpConnection connection)
         {
-            Logging.Debug($"Client connected from {connection.ClientSocket.RemoteEndPoint}");
-
-            lock (activeConnections)
-            {
-                activeConnections.Add(connection);
-            }
+            Logging.Debug("Client connected from {0}", connection.ClientSocket.RemoteEndPoint);
             connection.StartReceiving();
         }
 
@@ -266,9 +274,9 @@ namespace SpiderStud
         {
             while (connectionWatchRunning)
             {
-                lock (activeConnections)
+                foreach (var connection in connections)
                 {
-                    foreach (var connection in activeConnections)
+                    if (connection.IsAvailable)
                     {
                         connection.TimerTick();
                     }

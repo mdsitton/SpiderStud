@@ -8,6 +8,7 @@ namespace SpiderStud.Interfaces
 {
     public interface IAsyncSocketHandler
     {
+        bool IsAvailable { get; }
         void OnDisconnectComplete(Socket socket, SocketAsyncArgs e);
         void OnReceiveComplete(Socket socket, SocketAsyncArgs e, int dataWritten);
         Memory<byte> GetRecieveMemory(int size);

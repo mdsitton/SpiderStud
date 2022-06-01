@@ -28,7 +28,7 @@ namespace SpiderStud
             builder.AppendFormat("{0} [{1}] ", DateTime.Now, level);
         }
 
-        public static void Exception(Exception e, string? message)
+        public static void Exception(Exception e, string? message = null)
         {
 
             if (builder == null)

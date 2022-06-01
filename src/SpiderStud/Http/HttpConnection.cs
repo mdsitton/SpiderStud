@@ -30,7 +30,9 @@ namespace SpiderStud.Http
         public Socket ClientSocket => clientSocket;
         public SecureIPEndpoint? ConnectedEndpoint { get; private set; }
 
-        public bool IsAvailable => ClientSocket.Connected && !isClosing;
+        public bool IsAvailable => ClientSocket.Connected && !isClosing && isClaimed;
+
+        internal bool isClaimed = false;
 
         private SpiderStudServer server;
 
@@ -229,12 +231,18 @@ namespace SpiderStud.Http
 
         public Memory<byte> GetRecieveMemory(int size)
         {
+            if (isClosing)
+            {
+                return default;
+            }
             Logging.Info("Receive requested {0} bytes of memory", size);
             return receiveBuffer.GetMemory(size);
         }
 
         public void OnReceiveComplete(Socket socket, SocketAsyncArgs e, int dataWritten)
         {
+            if (dataWritten == 0 || isClosing)
+                return;
             Logging.Info("Receive complete {0} bytes", dataWritten);
             receiveBuffer.Advance(dataWritten);
             lastReceiveTime = DateTime.UtcNow;
@@ -294,7 +302,6 @@ namespace SpiderStud.Http
             tlsProtocol = null;
             sendState = SEND_IDLE;
             server.OnClientDisconnect(this);
-            isClosing = false;
             // Clear any data segments
             receiveBuffer.Reset();
         }

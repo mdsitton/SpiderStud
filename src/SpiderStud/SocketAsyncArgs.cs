@@ -60,31 +60,49 @@ namespace SpiderStud
         public void StartReceive(Socket socket)
         {
             // Set initial recieve buffer
-            SetBuffer(completionhandler.GetRecieveMemory(8000));
+            var memory = completionhandler.GetRecieveMemory(8000);
+            if (memory.Length == 0)
+                return;
+            SetBuffer(memory);
 
             while (!socket.ReceiveAsync(this))
             {
                 Logging.Debug("Receive immediate");
-                if (SocketError != SocketError.Success || BytesTransferred == 0)
+                if (SocketError != SocketError.Success || BytesTransferred == 0 || !completionhandler.IsAvailable)
                 {
-                    Logging.Debug($"Error {SocketError} bytes read {BytesTransferred}");
                     return;
                 }
                 completionhandler.OnReceiveComplete(socket, this, BytesTransferred);
-                SetBuffer(completionhandler.GetRecieveMemory(64)); // set buffer for next operation
+                memory = completionhandler.GetRecieveMemory(64);
+                if (memory.Length == 0)
+                    return;
+                SetBuffer(memory); // set buffer for next operation
             }
         }
 
         public void StartDisconnect(Socket socket)
         {
             // Disable send/receieve and ensure data is sent correctly
-            socket.Shutdown(SocketShutdown.Both);
+            try
+            {
+                socket.Shutdown(SocketShutdown.Both);
+            }
+            catch (Exception e)
+            {
+                Logging.Exception(e);
+            }
+
             while (!socket.DisconnectAsync(this))
             {
+                // Wait until socket has been disconnected
+                while (socket.Connected) ;
+
                 Logging.Debug("Disconnect immediate");
                 completionhandler.OnDisconnectComplete(socket, this);
             }
         }
+
+        byte[] emptyArray = new byte[0];
 
         protected override void OnCompleted(SocketAsyncEventArgs e)
         {
@@ -101,13 +119,16 @@ namespace SpiderStud
                     do
                     {
                         Logging.Debug("OnCompleted Receive immediate");
-                        if (SocketError != SocketError.Success || BytesTransferred == 0)
+                        if (SocketError != SocketError.Success || BytesTransferred == 0 || !completionhandler.IsAvailable)
                         {
                             Logging.Debug($"{SocketError} bytes read {BytesTransferred}");
                             return;
                         }
                         completionhandler.OnReceiveComplete(clientSocket, this, BytesTransferred);
-                        SetBuffer(completionhandler.GetRecieveMemory(64)); // set buffer for next operation
+                        var memory = completionhandler.GetRecieveMemory(64);
+                        if (memory.Length == 0)
+                            return;
+                        SetBuffer(memory); // set buffer for next operation
                     }
                     while (!clientSocket.ReceiveAsync(this));
                     break;
@@ -131,6 +152,13 @@ namespace SpiderStud
                     }
                     break;
                 case SocketAsyncOperation.Disconnect:
+                    // Wait until socket has been disconnected
+                    while (clientSocket.Connected)
+                    {
+                        // Socket send should force connection to update
+                        clientSocket.Send(emptyArray);
+                    }
+
                     completionhandler.OnDisconnectComplete(clientSocket, this);
                     break;
             }
