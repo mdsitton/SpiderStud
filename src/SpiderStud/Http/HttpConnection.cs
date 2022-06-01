@@ -235,7 +235,7 @@ namespace SpiderStud.Http
             {
                 return default;
             }
-            Logging.Info("Receive requested {0} bytes of memory", size);
+            Logging.Info<int>("Receive requested {0} bytes of memory", size);
             return receiveBuffer.GetMemory(size);
         }
 
@@ -243,7 +243,7 @@ namespace SpiderStud.Http
         {
             if (dataWritten == 0 || isClosing)
                 return;
-            Logging.Info("Receive complete {0} bytes", dataWritten);
+            Logging.Info<int>("Receive complete {0} bytes", dataWritten);
             receiveBuffer.Advance(dataWritten);
             lastReceiveTime = DateTime.UtcNow;
             var currentWritten = receiveBuffer.WrittenSequence;
@@ -252,6 +252,7 @@ namespace SpiderStud.Http
             {
                 if (currentWritten.IsSingleSegment)
                 {
+                    Logging.Debug("Http header found at offset {0}", offset);
                     headers.Clear(); // clear headers obj
                     HttpRequest request = new HttpRequest(headers);
                     request.Parse(currentWritten.FirstSpan);
@@ -266,6 +267,7 @@ namespace SpiderStud.Http
                     if (requestHandler == null)
                     {
                         // Endpoint not found return error
+                        Logging.Warn("Multi-Segment message found closing connection");
                         HttpResponse response = new HttpResponse(HttpStatusCode.NotFound);
                         SendResponse(response);
                         CloseConnection();

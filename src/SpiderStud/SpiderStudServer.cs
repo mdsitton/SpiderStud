@@ -136,7 +136,7 @@ namespace SpiderStud
                 {
                     Logging.Warn("Socket not listening on correct port");
                 }
-                Logging.Info("Server now listening at {0} (actual port {1})", localEndpoint.Address, localEndpoint.Port);
+                Logging.Info<IPAddress, int>("Server now listening at {0} (actual port {1})", localEndpoint.Address, localEndpoint.Port);
             }
 
             SocketAsyncEventArgs acceptEventArg = new SocketAsyncEventArgs();
