@@ -44,7 +44,7 @@ namespace SpiderStud.Tls
             callbacks.OnHandshakeComplete();
         }
 
-        protected override IList GetProtocolNames() => protocolNames;
+        protected override IList<ProtocolName> GetProtocolNames() => protocolNames;
 
         protected override TlsCredentialedSigner GetRsaSignerCredentials()
         {
